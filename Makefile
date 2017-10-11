@@ -1,4 +1,4 @@
 CXX=g++
-CPPFLAGS=-g -pthread -std=c++11
+CPPFLAGS=-g -pthread -std=c++11 -lpcap
 all:
-	$(CXX) $(CPPFLAGS) isashark.cpp -o isashark -lcrypto
+	$(CXX) $(CPPFLAGS) isashark.cpp -o isashark
