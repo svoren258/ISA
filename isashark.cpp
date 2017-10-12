@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sstream>
+#include <linux/icmp.h>
 //#include <iomanip>
 
 
@@ -34,6 +35,16 @@ using namespace std;
 #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
 
 
+void MacFormating(char* host_mac, char* dest_mac) {
+
+	cout << "Toto su MAC: " << host_mac << " " << dest_mac << endl;
+		// string host_mac_str = to_string(host_mac_addr);
+	// string dest_mac_str = to_string(dest_mac_addr);
+	// size_t pos = host_mac_str.find_first_of("0");
+	// cout << pos << endl;
+}
+
+
 int main(int argc, char **argv) {
 
 	///Arguments Parsing///
@@ -43,6 +54,7 @@ int main(int argc, char **argv) {
   	struct ip *my_ip;
 	const struct tcphdr *my_tcp;    // pointer to the beginning of TCP header
   	const struct udphdr *my_udp;    // pointer to the beginning of UDP header
+  	struct icmphdr *my_icmp; 
   	struct pcap_pkthdr header;  
   	struct ether_header *eptr;
   	pcap_t *handle;                 // file/device handler
@@ -58,6 +70,8 @@ int main(int argc, char **argv) {
 	bool is_limited = false;
 	const char* filter_expr;
 	const char* sort_key;
+
+	int p = 0;
 
 
 	string files;
@@ -85,6 +99,7 @@ int main(int argc, char **argv) {
 					//srcip, dstip
 
 					//srcport, dstport
+
 					break;
 				}
 			case 's':
@@ -130,6 +145,7 @@ int main(int argc, char **argv) {
   				  	// read packets from the file
 				  	while ((packet = pcap_next(handle,&header)) != NULL){
 				    n++;
+				    p++;
 
 				    if ((is_limited) && (n > limit)) {
 				    	break;
@@ -145,122 +161,258 @@ int main(int argc, char **argv) {
 				    my_ip6 = (struct ip6_hdr*) (packet+SIZE_ETHERNET);
 				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
 				    eptr = (struct ether_header *) packet;
+
+				    my_icmp = (struct icmphdr*)(packet + SIZE_ETHERNET);
 				    	
 				    // print the packet header data
 				    // printf("Packet no. %d:\n", n);
 				    // printf("\tLength %d, received at %s", header.len, ctime((const time_t*)&header.ts.tv_sec));  
 
 
-				    //TODO
-				    //total size of packet IPv4, IPv6
-				    //ethernet type number ()
-				    //seq,ack and flags (CWR, ECE) by TCP
-
-				    
+				    //TODO:
+				    //total size of packet IPv4, IPv6 ------ SOLVED!!!
+				    //ethernet type number (VLAN)
+				    //flags (CWR, ECE) by TCP
+				    //limit issue ------ SOLVED!!!
+				   	//ICMPv4, ICMPv6 - type and code 
+				   	//MAC Address first 0
+				  
+				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
 
 				    switch (ntohs(eptr->ether_type)) {
 				    	case ETHERTYPE_IP:
 				    		size_ip = my_ip->ip_hl*4;
 
-				    		cout << to_string(n) + ": " + to_string(ts) + " " << ntohs(my_ip->ip_len) + size_ip - 6 << " | " << endl;
+				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip->ip_len) + SIZE_ETHERNET << " | ";
 				    
-				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " << " | " << endl;
+				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
 				    		
-				    		cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | " << endl;
+				    		cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
+				    		
+				    		switch (my_ip->ip_p) {
+						    	case 6:
+						    		cout << "TCP: ";
+						    		my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
+						    		cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " FLAGS" << endl;
+						    		// cout << to_string(my_tcp->th_flags) << endl;
+						   //  		if (my_tcp->th_flags & TH_CWR){
+						   //  			cout << "C";
+						   //  		}
+						   //  		else{
+						   //  			cout << ".";
+						   //  		}
+						   //  		if (my_tcp->th_flags & TH_ECE){
+						   //  			cout << "E";
+						   //  		}
+						   //  		else{
+						   //  			cout << ".";
+						   //  		}
+						   //  		if (my_tcp->th_flags & TH_URG){
+						   //  			cout << "U";
+						   //  		}
+						   //  		else{
+						   //  			cout << ".";
+						   //  		}
+						   //  		if (my_tcp->th_flags & TH_ACK){
+							  // 			cout << "A";	
+						   //  		}
+						   //  		else{
+						   //  			cout << ".";
+						   //  		}
+							  // 		if (my_tcp->th_flags & TH_PUSH){
+							  // 			cout << "P";
+							  // 		}
+							  // 		else{
+						   //  			cout << ".";
+						   //  		}
+							  // 		if (my_tcp->th_flags & TH_RST){
+							  // 			cout << "R";
+							  // 		}
+							  // 		else{
+						   //  			cout << ".";
+						   //  		}
+						   //  		if (my_tcp->th_flags & TH_SYN){
+							  // 			cout << "S";
+						   //  		}
+						   //  		else{
+						   //  			cout << ".";
+						   //  		}
+									// if (my_tcp->th_flags & TH_FIN){
+							  // 			cout << "F";
+									// }
+									// else{
+						   //  			cout << ".";
+						   //  		}
+									
+						    		break;
+
+						    	case 17:
+						    		cout << "UDP: ";
+						    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
+						    		cout << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+						    		break;
+						    }
 				    		break;
+
 
 				    	case ETHERTYPE_IPV6:
 				    		size_ip = 40;
-				    		cout << to_string(n) + ": " + to_string(ts) + " " << ntohs(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) << " | " << endl;
+				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) + SIZE_ETHERNET + 40 << " | ";
 				    
-				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " << " | " << endl;
+				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
 				    		char buffer[INET6_ADDRSTRLEN];
-				    		cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | " << endl;
+				    		cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
+				    		
+				    		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
+				    			case 17:
+					    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
+					    		cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+					    		break;
+				    		}
 				    		break;
+
+				    	// case ETHERTYPE_VLAN:
+
+				    	// 	break;
+
+				   //  	default:
+				   //  	    // std::stringstream stream;
+						 //    // stream << "0x0" << std::hex << ntohs(eptr->ether_type);
+						 //    // string hex_ethertype(stream.str());
+						 //    // cout << hex_ethertype << endl; 
+
+							// //if ((hex_ethertype.compare("0x8100") == 0) || (hex_ethertype.compare("0x88A8") == 0)) {		    	
+						 //    // 	cout << "IEEE 802.1Q" << endl;
+						 //    // 	cout << "IEE 802.1ad" << endl;
+
+				    		//if(my_icmp->type == 3) {
+					    		// switch(my_icmp->code) {
+
+					    		// 	case 0:
+					    		// 		cout << "net unreachable" << endl;
+					    		// 		break;
+
+					    		// 	case 1:
+					    		// 		cout << "host unreachable" << endl;
+					    		// 		break;
+
+					    		// 	case 2:
+					    		// 		cout << "protocol unreachable" << endl;
+					    		// 		break;
+
+					    		// 	case 3:
+					    		// 		cout << "port unreachable" << endl;
+					    		// 		break;
+
+					    		// 	case 4:
+					    		// 		cout << "fragmentation needed and DF set" << endl;
+					    		// 		break;
+
+					    		// 	case 5:
+					    		// 		cout << "source route failed" << endl;
+					    		// 		break;
+					    		// }
+				    		//}
+				    		// else if(my_icmp->type == 11) {
+				    		// 	switch(my_icmp->code) {
+				    		// 		case 0:
+				    		// 			cout << "time to live exceeded in transit" << endl;
+				    		// 			break;
+
+				    		// 		case 1:
+				    		// 			cout << "fragment reassembly time exceeeded" << endl;
+				    		// 			break;
+				    		// 	} 
+				    		// }
+
+				    		// else if(my_icmp->type == 12) {
+				    		// 	if(my_icmp->code == 0) {
+				    		// 		cout << "pointer indicates the error" << endl;
+				    		// 	}
+				    		// }
+
+				    		// else if(my_icmp->type == 5) {
+				    		// 	switch(my_icmp->code) {
+				    		// 		case 0:
+				    		// 			cout << "Redirect datagrams for the Network." << endl;
+				    		// 			break;
+				    		// 		case 1:
+				    		// 			cout << "Redirect datagrams for the Host." << endl;
+				    		// 			break;
+				    		// 		case 2:
+				    		// 			cout << "Redirect datagrams for the Type of Service and Network." << endl;
+				    		// 			break;
+				    		// 		case 3:
+				    		// 			cout << "Redirect datagrams for the Type of Service and Host." << endl;
+				    		// 			break; 
+				    		// 	}
+				    		// }
+   							
+   							// //TYPE: 0,8
+   							// //CODE: 0
+   							// //Identifier: If code = 0, an identifier to aid in matching echos and replies, may be zero.
+				    		// //Sequence Number: If code = 0, a sequence number to aid in matching echos and replies, may be zero.
+				    		// else if (my_icmp->type == 8) {
+				    		// 	cout << "echo message" << endl;
+				    		// }
+				    		// else if (my_icmp->type == 0) {
+				    		// 	cout << "echo reply message" << endl;
+				    		// }
+
+				    		// //TYPE: 13,14
+				    		// //CODE: 0
+				    		// //Identifier: If code = 0, an identifier to aid in matching timestamp and replies, may be zero.
+				    		// //Sequence Number: If code = 0, a sequence number to aid in matching timestamp and replies, may be zero.
+				    		// else if (my_icmp->type == 13) {
+				    		// 	cout << "timestamp message" << endl;
+				    		// }
+				    		// else if (my_icmp->type == 14) {
+				    		// 	cout << "timestamp reply message" << endl;
+				    		// }
+
+				    		// //TYPE: 15,16
+				    		// //CODE: 0
+				    		// //Identifier: If code = 0, an identifier to aid in matching request and replies, may be zero.
+				    		// //Sequence Number: If code = 0, a sequence number to aid in matching request and replies, may be zero.
+				    		// else if (my_icmp->type == 15) {
+				    		// 	cout << "information request message" << endl;
+				    		// }
+				    		// else if (my_icmp->type == 16) {
+				    		// 	cout << "information reply message" << endl;
+				    		// } 
+
+				    		// break;
+
+				    	// 	Summary of Message Types
+
+						   //  0  Echo Reply
+
+						   //  3  Destination Unreachable
+
+						   //  4  Source Quench
+
+						   //  5  Redirect
+
+						   //  8  Echo
+
+						   // 11  Time Exceeded
+
+						   // 12  Parameter Problem
+
+						   // 13  Timestamp
+
+						   // 14  Timestamp Reply
+
+						   // 15  Information Request
+
+						   // 16  Information Reply
+
+				    		
 				    }
 
-				    // std::stringstream stream;
-				    // stream << "0x0" << std::hex << ntohs(eptr->ether_type);
-				    // string hex_ethertype(stream.str());
-				    // cout << hex_ethertype << endl; 
 
-					//if ((hex_ethertype.compare("0x8100") == 0) || (hex_ethertype.compare("0x88A8") == 0)) {		    	
-				    // 	cout << "IEEE 802.1Q" << endl;
-				    // 	cout << "IEE 802.1ad" << endl;
-				    // }
+				 
 
-				    
-				    switch (my_ip->ip_p) {
-				    	case 6:
-				    		cout << "TCP: ";
-				    		my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
-				    		cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " FLAGS" << endl;
-				    		// cout << to_string(my_tcp->th_flags) << endl;
-				   //  		if (my_tcp->th_flags & TH_CWR){
-				   //  			cout << "C";
-				   //  		}
-				   //  		else{
-				   //  			cout << ".";
-				   //  		}
-				   //  		if (my_tcp->th_flags & TH_ECE){
-				   //  			cout << "E";
-				   //  		}
-				   //  		else{
-				   //  			cout << ".";
-				   //  		}
-				   //  		if (my_tcp->th_flags & TH_URG){
-				   //  			cout << "U";
-				   //  		}
-				   //  		else{
-				   //  			cout << ".";
-				   //  		}
-				   //  		if (my_tcp->th_flags & TH_ACK){
-					  // 			cout << "A";	
-				   //  		}
-				   //  		else{
-				   //  			cout << ".";
-				   //  		}
-					  // 		if (my_tcp->th_flags & TH_PUSH){
-					  // 			cout << "P";
-					  // 		}
-					  // 		else{
-				   //  			cout << ".";
-				   //  		}
-					  // 		if (my_tcp->th_flags & TH_RST){
-					  // 			cout << "R";
-					  // 		}
-					  // 		else{
-				   //  			cout << ".";
-				   //  		}
-				   //  		if (my_tcp->th_flags & TH_SYN){
-					  // 			cout << "S";
-				   //  		}
-				   //  		else{
-				   //  			cout << ".";
-				   //  		}
-							// if (my_tcp->th_flags & TH_FIN){
-					  // 			cout << "F";
-							// }
-							// else{
-				   //  			cout << ".";
-				   //  		}
-							
-				    		break;
-
-				    	case 17:
-				    		cout << "UDP: ";
-				    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-				    		cout << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-				    		break;
-				    }
-
-
-				    switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
-				    	case 17:
-				    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-				    		cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-				    		break;
-				    }
 				    
 				    // read the Ethernet header
 				    eptr = (struct ether_header *) packet;
@@ -315,14 +467,15 @@ int main(int argc, char **argv) {
 				    default:
 				      printf("\tEthernet type 0x%x, not IPv4\n", ntohs(eptr->ether_type));
 				    } 
+				    cout << endl;
 				  
 				}
 				  printf("End of file reached ...\n");
 				  
 				  // close the capture device and deallocate resources
 				  pcap_close(handle);
-				  n = 0;
-
+				  //n = 0;
+				  p = 0;
 				string arg_str(argv[numOfArgs+1]);
 				files = files + arg_str + " ";
 				numOfArgs++;
