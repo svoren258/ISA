@@ -156,11 +156,18 @@ int main(int argc, char **argv) {
 				    // unsigned int total_len = hdr_len + my_ip->ip_hl*4 - 6;
 				    // cout << total_len << endl;
 				    //ntohs(my_ip->ip_len) + ntohs(my_ip->ip_id) - 6
+				    
+				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
+				    eptr = (struct ether_header *) packet;
+
+				    std::stringstream stream;
+					stream << "0x" << std::hex << ntohs(eptr->ether_type);
+					string hex_ethertype(stream.str());
+					cout << hex_ethertype << endl; 
+
 				    my_ip = (struct ip*) (packet+SIZE_ETHERNET);        // skip Ethernet header
 
 				    my_ip6 = (struct ip6_hdr*) (packet+SIZE_ETHERNET);
-				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
-				    eptr = (struct ether_header *) packet;
 
 				    my_icmp = (struct icmphdr*)(packet + SIZE_ETHERNET);
 				    	
@@ -171,16 +178,17 @@ int main(int argc, char **argv) {
 
 				    //TODO:
 				    //total size of packet IPv4, IPv6 ------ SOLVED!!!
-				    //ethernet type number (VLAN)
-				    //flags (CWR, ECE) by TCP
+				    //ethernet type number (VLAN,...)
+				    //flags (CWR, ECE) by TCP, unknown offsets for flags
 				    //limit issue ------ SOLVED!!!
-				   	//ICMPv4, ICMPv6 - type and code 
+				   	//ICMPv4, ICMPv6 - type and code
 				   	//MAC Address first 0
 				  
 				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
 
 				    switch (ntohs(eptr->ether_type)) {
 				    	case ETHERTYPE_IP:
+
 				    		size_ip = my_ip->ip_hl*4;
 
 				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip->ip_len) + SIZE_ETHERNET << " | ";
@@ -193,56 +201,57 @@ int main(int argc, char **argv) {
 						    	case 6:
 						    		cout << "TCP: ";
 						    		my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
-						    		cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " FLAGS" << endl;
-						    		// cout << to_string(my_tcp->th_flags) << endl;
-						   //  		if (my_tcp->th_flags & TH_CWR){
-						   //  			cout << "C";
-						   //  		}
-						   //  		else{
-						   //  			cout << ".";
-						   //  		}
-						   //  		if (my_tcp->th_flags & TH_ECE){
-						   //  			cout << "E";
-						   //  		}
-						   //  		else{
-						   //  			cout << ".";
-						   //  		}
-						   //  		if (my_tcp->th_flags & TH_URG){
-						   //  			cout << "U";
-						   //  		}
-						   //  		else{
-						   //  			cout << ".";
-						   //  		}
-						   //  		if (my_tcp->th_flags & TH_ACK){
-							  // 			cout << "A";	
-						   //  		}
-						   //  		else{
-						   //  			cout << ".";
-						   //  		}
-							  // 		if (my_tcp->th_flags & TH_PUSH){
-							  // 			cout << "P";
-							  // 		}
-							  // 		else{
-						   //  			cout << ".";
-						   //  		}
-							  // 		if (my_tcp->th_flags & TH_RST){
-							  // 			cout << "R";
-							  // 		}
-							  // 		else{
-						   //  			cout << ".";
-						   //  		}
-						   //  		if (my_tcp->th_flags & TH_SYN){
-							  // 			cout << "S";
-						   //  		}
-						   //  		else{
-						   //  			cout << ".";
-						   //  		}
-									// if (my_tcp->th_flags & TH_FIN){
-							  // 			cout << "F";
-									// }
-									// else{
-						   //  			cout << ".";
-						   //  		}
+						    		cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
+
+						    		if (my_tcp->th_flags & TH_CWR){
+						    			cout << "C";
+						    		}
+						    		else{
+						    			cout << ".";
+						    		}
+						    		if (my_tcp->th_flags & TH_ECE){
+						    			cout << "E";
+						    		}
+						    		else{
+						    			cout << ".";
+						    		}
+						    		if (my_tcp->th_flags & TH_URG){
+						    			cout << "U";
+						    		}
+						    		else{
+						    			cout << ".";
+						    		}
+						    		if (my_tcp->th_flags & TH_ACK){
+							  			cout << "A";	
+						    		}
+						    		else{
+						    			cout << ".";
+						    		}
+							  		if (my_tcp->th_flags & TH_PUSH){
+							  			cout << "P";
+							  		}
+							  		else{
+						    			cout << ".";
+						    		}
+							  		if (my_tcp->th_flags & TH_RST){
+							  			cout << "R";
+							  		}
+							  		else{
+						    			cout << ".";
+						    		}
+						    		if (my_tcp->th_flags & TH_SYN){
+							  			cout << "S";
+						    		}
+						    		else{
+						    			cout << ".";
+						    		}
+									if (my_tcp->th_flags & TH_FIN){
+							  			cout << "F";
+									}
+									else{
+						    			cout << ".";
+						    		}
+						    		cout << endl;
 									
 						    		break;
 
@@ -265,17 +274,33 @@ int main(int argc, char **argv) {
 				    		
 				    		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
 				    			case 17:
-					    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-					    		cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-					    		break;
+					    			my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
+					    			cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+					    			break;
+
+					    		default:
+					    			cout << "default (ICMPv6)" << endl;
+					    			break;
 				    		}
 				    		break;
 
-				    	// case ETHERTYPE_VLAN:
+				    	case ETHERTYPE_VLAN:
+				    	
+				    		cout << "VLAN" << endl;
+							// if (hex_ethertype.compare("0x8100") == 0) {		    	
+						 //    	cout << "IEEE 802.1Q --- IPv6" << endl;
+	
+				   //  		}
+				   //  		else if (hex_ethertype.compare("0x88a8") == 0){
+				   //  			cout << "IEEE 802.1ad --- IPv4" << endl;
 
-				    	// 	break;
+				   //  		}
+				    		break;
 
-				   //  	default:
+				     	default:
+				     		cout << "default (ICMPv4)" << endl;
+				     		break;
+				    }
 				   //  	    // std::stringstream stream;
 						 //    // stream << "0x0" << std::hex << ntohs(eptr->ether_type);
 						 //    // string hex_ethertype(stream.str());
@@ -408,7 +433,7 @@ int main(int argc, char **argv) {
 						   // 16  Information Reply
 
 				    		
-				    }
+				    
 
 
 				 
