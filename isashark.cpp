@@ -59,7 +59,12 @@ int main(int argc, char **argv) {
   	pcap_t *handle;                 // file/device handler
   	u_int size_ip;
   	struct ip6_hdr *my_ip6, *my_ip6_2;
-	
+
+  	struct bpf_program fp;
+	bpf_u_int32 netaddr = 0;            // network address configured at the input device
+	bpf_u_int32 mask;               // network mask of the input device
+	char *dev = NULL;
+
 	///Arguments Parsing
 	const char* aggrkey;
 	const char* filter_expr;
@@ -165,8 +170,10 @@ int main(int argc, char **argv) {
 
 			case 'f':
 				if (optarg) {
-					cout << "filter" << endl;
 					filter_expr = optarg;
+					cout << "filter type, dir, proto: " << optarg << endl;
+					
+					
 					break;
 				}
 
@@ -189,6 +196,13 @@ int main(int argc, char **argv) {
 	// 	// exit(0);
 	// }
 
+	// dev = pcap_lookupdev(errbuf);
+	// if (dev == NULL) {
+	// 		fprintf(stderr, "Couldn't find default device: %s\n",errbuf);
+	// 		exit(EXIT_FAILURE);
+	// }
+
+
 	// int numOfArgs = argc - 1;
 	while (argc > optind) {
 		// if (strcmp(argv[numOfArgs], "file") == 0) {
@@ -199,7 +213,20 @@ int main(int argc, char **argv) {
     				err(1,"Can't open file %s for reading", argv[optind]);
   
   				printf("Opening file %s for reading ...\n\n", argv[optind]);
-  				  	// read packets from the file
+
+  		// 		if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
+				// 	fprintf(stderr, "Couldn't get netmask for device %s: %s\n",dev, errbuf);
+				// 	netaddr = 0;
+				// 	mask = 0;
+				// }
+
+  				if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
+    					err(1,"pcap_compile() failed");
+
+    			if (pcap_setfilter(handle,&fp) == -1)
+    					err(1,"pcap_setfilter() failed");
+  				
+  				// read packets from the file
 				while ((packet = pcap_next(handle,&header)) != NULL){
 				    n++;
 				    p++;
@@ -240,6 +267,7 @@ int main(int argc, char **argv) {
 				    //limit issue ------ SOLVED!!!
 				   	//ICMPv4, ICMPv6 - type and code
 				   	//MAC Address first 0
+				   	//filter expr ------ SOLVED!!!
 				  
 				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
 
@@ -557,7 +585,7 @@ int main(int argc, char **argv) {
 				// close the capture device and deallocate resources
 				pcap_close(handle);
 				//n = 0;
-				p = 0;
+				// p = 0;
 				// string arg_str(argv[numOfArgs+1]);
 				// files = files + arg_str + " ";
 				// numOfArgs++;
