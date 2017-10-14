@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
 
 	///Arguments Parsing
 	const char* aggrkey;
-	const char* filter_expr;
+	const char* filter_expr = "";
 	const char* sort_key;
 	int limit;
 	
@@ -172,8 +172,6 @@ int main(int argc, char **argv) {
 				if (optarg) {
 					filter_expr = optarg;
 					cout << "filter type, dir, proto: " << optarg << endl;
-					
-					
 					break;
 				}
 
@@ -219,12 +217,14 @@ int main(int argc, char **argv) {
 				// 	netaddr = 0;
 				// 	mask = 0;
 				// }
-
-  				if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
+  				if (strcmp(filter_expr, "") != 0) {
+  					if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
     					err(1,"pcap_compile() failed");
 
-    			if (pcap_setfilter(handle,&fp) == -1)
+    				if (pcap_setfilter(handle,&fp) == -1)
     					err(1,"pcap_setfilter() failed");
+  				}
+  				
   				
   				// read packets from the file
 				while ((packet = pcap_next(handle,&header)) != NULL){
@@ -263,11 +263,12 @@ int main(int argc, char **argv) {
 				    //TODO:
 				    //total size of packet IPv4, IPv6 ------ SOLVED!!!
 				    //ethernet type number (VLAN,...)
-				    //flags (CWR, ECE) by TCP, unknown offsets for flags
+				    //flags (CWR, ECE) by TCP, unknown offsets for flags ------ SOLVED!!!
 				    //limit issue ------ SOLVED!!!
 				   	//ICMPv4, ICMPv6 - type and code
 				   	//MAC Address first 0
 				   	//filter expr ------ SOLVED!!!
+				   	//agregation and sorting
 				  
 				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
 
@@ -278,8 +279,25 @@ int main(int argc, char **argv) {
 
 				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip->ip_len) + SIZE_ETHERNET << " | ";
 				    
-				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
+				    		cout << "Ethernet: ";
+
+				    		cout << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
 				    		
+				    		// for (int i = 0; i < 6; i++) {
+
+				    		// 	// cout << strlen(ether_ntoa((const struct ether_addr *)&eptr->ether_shost)) << endl;
+				    		// 	printf("%20x", &eptr->ether_shost[i]);
+				    		// 	cout << ":";
+				    			
+				    		// }
+
+
+				    		// cout << " " << endl;
+
+				    		// printf("%20x", (const struct ether_addr *)&eptr->ether_dhost[0]);
+
+				    		// cout << " | ";
+
 				    		cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
 				    		
 				    		switch (my_ip->ip_p) {
