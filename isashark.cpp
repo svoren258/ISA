@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sstream>
 #include <linux/icmp.h>
+#include <getopt.h>
 //#include <iomanip>
 
 
@@ -47,8 +48,6 @@ void MacFormating(char* host_mac, char* dest_mac) {
 
 int main(int argc, char **argv) {
 
-	///Arguments Parsing///
-  	int n;
   	char errbuf[PCAP_ERRBUF_SIZE];  // constant defined in pcap.h
   	const u_char *packet;
   	struct ip *my_ip;
@@ -61,89 +60,147 @@ int main(int argc, char **argv) {
   	u_int size_ip;
   	struct ip6_hdr *my_ip6, *my_ip6_2;
 	
-
-	unsigned long long timestamp;
-	unsigned int packetlen;
+	///Arguments Parsing
 	const char* aggrkey;
-	bool aggr_key = false;
-	int limit;
-	bool is_limited = false;
 	const char* filter_expr;
 	const char* sort_key;
+	int limit;
+	
+	//bool variables
+	bool input_files = false;
+	bool sort_by_packets = false;
+	bool sort_by_bytes = false;
+	bool aggr_srcmac = false;
+	bool aggr_dstmac = false;
+	bool aggr_srcip = false;
+	bool aggr_dstip = false;
+	bool aggr_srcport = false;
+	bool aggr_dstport = false;
+	bool is_limited = false;
+	bool filter = false;
 
+	///counter variables
 	int p = 0;
+	int n = 0;
 
-
-	string files;
+	// string files;
 
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
-			cout << "HELP" << endl;
+			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] file ..." << endl;
 			exit(0);
 		}
 	}
 
 
-	
-
 	int c;
 	while ((c = getopt (argc, argv, "a:s:l:f:")) != -1) {
-		switch(c)
-		{
+		switch(c) {
 			case 'a':
 				if (optarg) {
-					//srcmac, dstmac
 					aggrkey = optarg;
-					aggr_key = true;
-					cout << aggrkey << endl;
-					//srcip, dstip
+					// aggr_key = true;
+					cout << "aggrkey: " << aggrkey << endl;
 
-					//srcport, dstport
+					if (strcmp(aggrkey, "srcmac") == 0) {
+						aggr_srcmac = true;
+					}
+
+					else if (strcmp(aggrkey, "dstmac") == 0) {
+						aggr_dstmac = true;
+					}
+
+					else if (strcmp(aggrkey, "srcip") == 0) {
+						aggr_srcip = true;
+					}
+
+					else if (strcmp(aggrkey, "dstip") == 0) {
+						aggr_dstip = true;
+					}
+
+					else if (strcmp(aggrkey, "srcport") == 0) {
+						aggr_srcport = true;
+					}
+
+					else if (strcmp(aggrkey, "dstport") == 0) {
+						aggr_dstport = true;
+					}
+					else {
+						cerr << "Wrong argument value [-a aggr-key]!" << endl;
+						exit(1);
+					}
 
 					break;
 				}
+
 			case 's':
 				if (optarg) {
 					sort_key = optarg;
-					cout << sort_key << endl;
+					cout << "sort key:" << sort_key << endl;
+					if (strcmp(sort_key, "packets") == 0) {
+
+					}
+					else if (strcmp(sort_key, "bytes") == 0) {
+
+					}
+					else {
+						cerr << "Wrong argument value [-s sort-key]!" << endl;
+						exit(1);
+					}
 					break;
 				}
+
 			case 'l':
 				if (optarg) {
 					limit = atoi(optarg);
 					is_limited = true;
+					cout << "limit: " << limit << endl;
 					if (limit < 0) {
-						cerr << "Wrong limit value!" << endl;
+						cerr << "Wrong argument value [-l limit]!" << endl;
 						exit(1);
 					}
-					// cout << limit << endl;
 
 					break;
 				}
+
 			case 'f':
 				if (optarg) {
+					cout << "filter" << endl;
 					filter_expr = optarg;
 					break;
 				}
+
 			default:
+				cout << "default" << endl;
+				if (optarg) {
+					cout << optarg << endl;
+				}
+				break;
 				// err(1, "Invalid input arguments!\n");
-				cerr << "Invalid input arguments!" << endl;
-				exit(1);
+				// cerr << "Invalid input arguments!" << endl;
+				// exit(1);
 		}
 
 	}
+	// if (c == -1) {
+	// 	// cout << "argc:" << argc << endl;
+	// 	// cout << "optind:" << optind << endl;
+	// 	cout << argv[optind] << endl;
+	// 	// exit(0);
+	// }
 
-	int numOfArgs = argc - 1;
-	while (numOfArgs >= 1) {
-		if (strcmp(argv[numOfArgs], "file") == 0) {
-			while (numOfArgs < argc-1) {
+	// int numOfArgs = argc - 1;
+	while (argc > optind) {
+		// if (strcmp(argv[numOfArgs], "file") == 0) {
+			// input_files = true;
+			// while (numOfArgs < argc-1) {
 
-				if ((handle = pcap_open_offline(argv[numOfArgs+1],errbuf)) == NULL)
-    				err(1,"Can't open file %s for reading", argv[numOfArgs+1]);
+				if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL)
+    				err(1,"Can't open file %s for reading", argv[optind]);
   
-  					printf("Opening file %s for reading ...\n\n", argv[numOfArgs+1]);
+  				printf("Opening file %s for reading ...\n\n", argv[optind]);
   				  	// read packets from the file
-				  	while ((packet = pcap_next(handle,&header)) != NULL){
+				while ((packet = pcap_next(handle,&header)) != NULL){
 				    n++;
 				    p++;
 
@@ -440,77 +497,85 @@ int main(int argc, char **argv) {
 
 				    
 				    // read the Ethernet header
-				    eptr = (struct ether_header *) packet;
-				    printf("\tSource MAC: %s\n",ether_ntoa((const struct ether_addr *)&eptr->ether_shost)) ;
-				    printf("\tDestination MAC: %s\n",ether_ntoa((const struct ether_addr *)&eptr->ether_dhost)) ;
+				 //    eptr = (struct ether_header *) packet;
+				 //    printf("\tSource MAC: %s\n",ether_ntoa((const struct ether_addr *)&eptr->ether_shost)) ;
+				 //    printf("\tDestination MAC: %s\n",ether_ntoa((const struct ether_addr *)&eptr->ether_dhost)) ;
 				    
-				    switch (ntohs(eptr->ether_type)){               // see /usr/include/net/ethernet.h for types
-				    case ETHERTYPE_IP: // IPv4 packet
-				      printf("\tEthernet type is  0x%x, i.e. IP packet \n", ntohs(eptr->ether_type));
-				      my_ip = (struct ip*) (packet+SIZE_ETHERNET);        // skip Ethernet header
-				      size_ip = my_ip->ip_hl*4;                           // length of IP header
+				 //    switch (ntohs(eptr->ether_type)){               // see /usr/include/net/ethernet.h for types
+				 //    case ETHERTYPE_IP: // IPv4 packet
+				 //      printf("\tEthernet type is  0x%x, i.e. IP packet \n", ntohs(eptr->ether_type));
+				 //      my_ip = (struct ip*) (packet+SIZE_ETHERNET);        // skip Ethernet header
+				 //      size_ip = my_ip->ip_hl*4;                           // length of IP header
 				      
-				      printf("\tIP: id 0x%x, hlen %d bytes, version %d, total length %d bytes, TTL %d\n",ntohs(my_ip->ip_id),size_ip,my_ip->ip_v,ntohs(my_ip->ip_len),my_ip->ip_ttl);
-				      printf("\tIP src = %s, ",inet_ntoa(my_ip->ip_src));
-				      printf("IP dst = %s",inet_ntoa(my_ip->ip_dst));
+				 //      printf("\tIP: id 0x%x, hlen %d bytes, version %d, total length %d bytes, TTL %d\n",ntohs(my_ip->ip_id),size_ip,my_ip->ip_v,ntohs(my_ip->ip_len),my_ip->ip_ttl);
+				 //      printf("\tIP src = %s, ",inet_ntoa(my_ip->ip_src));
+				 //      printf("IP dst = %s",inet_ntoa(my_ip->ip_dst));
 				      
-				      switch (my_ip->ip_p){
-				      case 2: // IGMP protocol
-					printf(", protocol IGMP (%d)\n",my_ip->ip_p);
-					break;
-				      case 6: // TCP protocol
-					printf(", protocol TCP (%d)\n",my_ip->ip_p);
-					my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
-					printf("\tSrc port = %d, dst port = %d, seq = %u",ntohs(my_tcp->th_sport), ntohs(my_tcp->th_dport), ntohl(my_tcp->th_seq));
-					if (my_tcp->th_flags & TH_SYN)
-					  printf(", SYN");
-					if (my_tcp->th_flags & TH_FIN)
-					  printf(", FIN");
-					if (my_tcp->th_flags & TH_RST)
-					  printf(", RST");
-					if (my_tcp->th_flags & TH_PUSH)
-					  printf(", PUSH");
-					if (my_tcp->th_flags & TH_ACK)
-					  printf(", ACK");
-					printf("\n");
-					break;
-				      case 17: // UDP protocol
-					printf(", protocol UDP (%d)\n",my_ip->ip_p);
-					my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-					printf("\tSrc port = %d, dst port = %d, length %d\n",ntohs(my_udp->uh_sport), ntohs(my_udp->uh_dport), ntohs(my_udp->uh_ulen));
-					break;
-				      default: 
-					printf(", protocol %d\n",my_ip->ip_p);
-				      }
-				      break;
-				    case ETHERTYPE_IPV6:  // IPv6
-				      printf("\tEthernet type is 0x%x, i.e., IPv6 packet\n",ntohs(eptr->ether_type));
-				      break;
-				    case ETHERTYPE_ARP:  // ARP
-				      printf("\tEthernet type is 0x%x, i.e., ARP packet\n",ntohs(eptr->ether_type));
-				      break;
-				    default:
-				      printf("\tEthernet type 0x%x, not IPv4\n", ntohs(eptr->ether_type));
-				    } 
+				 //      switch (my_ip->ip_p){
+				 //      case 2: // IGMP protocol
+					// printf(", protocol IGMP (%d)\n",my_ip->ip_p);
+					// break;
+				 //      case 6: // TCP protocol
+					// printf(", protocol TCP (%d)\n",my_ip->ip_p);
+					// my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
+					// printf("\tSrc port = %d, dst port = %d, seq = %u",ntohs(my_tcp->th_sport), ntohs(my_tcp->th_dport), ntohl(my_tcp->th_seq));
+					// if (my_tcp->th_flags & TH_SYN)
+					//   printf(", SYN");
+					// if (my_tcp->th_flags & TH_FIN)
+					//   printf(", FIN");
+					// if (my_tcp->th_flags & TH_RST)
+					//   printf(", RST");
+					// if (my_tcp->th_flags & TH_PUSH)
+					//   printf(", PUSH");
+					// if (my_tcp->th_flags & TH_ACK)
+					//   printf(", ACK");
+					// printf("\n");
+					// break;
+				 //      case 17: // UDP protocol
+					// printf(", protocol UDP (%d)\n",my_ip->ip_p);
+					// my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
+					// printf("\tSrc port = %d, dst port = %d, length %d\n",ntohs(my_udp->uh_sport), ntohs(my_udp->uh_dport), ntohs(my_udp->uh_ulen));
+					// break;
+				 //      default: 
+					// printf(", protocol %d\n",my_ip->ip_p);
+				 //      }
+				 //      break;
+				 //    case ETHERTYPE_IPV6:  // IPv6
+				 //      printf("\tEthernet type is 0x%x, i.e., IPv6 packet\n",ntohs(eptr->ether_type));
+				 //      break;
+				 //    case ETHERTYPE_ARP:  // ARP
+				 //      printf("\tEthernet type is 0x%x, i.e., ARP packet\n",ntohs(eptr->ether_type));
+				 //      break;
+				 //    default:
+				 //      printf("\tEthernet type 0x%x, not IPv4\n", ntohs(eptr->ether_type));
+				 //    } 
 				    cout << endl;
 				  
 				}
-				  printf("End of file reached ...\n");
+				 printf("End of file reached ...\n");
 				  
-				  // close the capture device and deallocate resources
-				  pcap_close(handle);
-				  //n = 0;
-				  p = 0;
-				string arg_str(argv[numOfArgs+1]);
-				files = files + arg_str + " ";
-				numOfArgs++;
-			}
-			cout << files << endl;
-			break;
-		}
-		numOfArgs--;
+				// close the capture device and deallocate resources
+				pcap_close(handle);
+				//n = 0;
+				p = 0;
+				// string arg_str(argv[numOfArgs+1]);
+				// files = files + arg_str + " ";
+				// numOfArgs++;
+			
+			// cout << files << endl;
+			//break;
+		
+		//numOfArgs--;
+		optind++;
 	}
 
-	cout << "Hello world!" << endl ;
+	// if (input_files == false) {
+	// 	cerr << "Wrong argument value [files]!" << endl;
+	// 	exit(1);
+	// } 
+
+
+
+	// cout << "Hello world!" << endl ;
 	return 0;
 }
