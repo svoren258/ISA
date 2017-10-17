@@ -216,7 +216,10 @@ int main(int argc, char **argv) {
 				// 	mask = 0;
 				// }
   				if (strcmp(filter_expr, "") != 0) {
+<<<<<<< HEAD
   					//cout << "somtu" << endl;
+=======
+>>>>>>> 501421ca00ca76109be3512019a2e71193dc02e5
   					if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
     					err(1,"pcap_compile() failed");
 
@@ -273,9 +276,7 @@ int main(int argc, char **argv) {
 				   	//filter expr ------ SOLVED!!!
 				   	//agregation and sorting
 				   	//fragmentation
-				  
-				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
-
+				 
 				    switch (ntohs(eptr->ether_type)) {
 				    	case ETHERTYPE_IP:
 
