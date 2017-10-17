@@ -18,13 +18,18 @@
 #include <sstream>
 #include <linux/icmp.h>
 #include <getopt.h>
-//#include <iomanip>
+#include <linux/if_vlan.h>
+#include <pcap/vlan.h>
+//#include <uapi/linux/if_vlan.h>
+
+#include <iomanip>
 
 
 #ifdef __linux__            // for Linux
 #include <netinet/ether.h> 
 #include <time.h>
 #include <pcap/pcap.h>
+// #include <uapi/linux/if_vlan.h>
 #endif
 
 using namespace std;
@@ -34,16 +39,6 @@ using namespace std;
 #endif
 
 #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
-
-
-void MacFormating(char* host_mac, char* dest_mac) {
-
-	cout << "Toto su MAC: " << host_mac << " " << dest_mac << endl;
-		// string host_mac_str = to_string(host_mac_addr);
-	// string dest_mac_str = to_string(dest_mac_addr);
-	// size_t pos = host_mac_str.find_first_of("0");
-	// cout << pos << endl;
-}
 
 
 int main(int argc, char **argv) {
@@ -59,6 +54,9 @@ int main(int argc, char **argv) {
   	pcap_t *handle;                 // file/device handler
   	u_int size_ip;
   	struct ip6_hdr *my_ip6, *my_ip6_2;
+  	struct vlan_ethhdr *my_vlan;
+  	struct vlan_dev_priv *vlan_priv;
+
 
   	struct bpf_program fp;
 	bpf_u_int32 netaddr = 0;            // network address configured at the input device
@@ -143,10 +141,10 @@ int main(int argc, char **argv) {
 					sort_key = optarg;
 					cout << "sort key:" << sort_key << endl;
 					if (strcmp(sort_key, "packets") == 0) {
-
+						sort_by_packets = true;
 					}
 					else if (strcmp(sort_key, "bytes") == 0) {
-
+						sort_by_bytes = true;
 					}
 					else {
 						cerr << "Wrong argument value [-s sort-key]!" << endl;
@@ -171,7 +169,7 @@ int main(int argc, char **argv) {
 			case 'f':
 				if (optarg) {
 					filter_expr = optarg;
-					cout << "filter type, dir, proto: " << optarg << endl;
+					cout << "filter type, dir, proto: " << filter_expr << endl;
 					break;
 				}
 
@@ -218,6 +216,7 @@ int main(int argc, char **argv) {
 				// 	mask = 0;
 				// }
   				if (strcmp(filter_expr, "") != 0) {
+  					//cout << "somtu" << endl;
   					if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
     					err(1,"pcap_compile() failed");
 
@@ -254,6 +253,10 @@ int main(int argc, char **argv) {
 				    my_ip6 = (struct ip6_hdr*) (packet+SIZE_ETHERNET);
 
 				    my_icmp = (struct icmphdr*)(packet + SIZE_ETHERNET);
+
+				    my_vlan = (struct vlan_ethhdr*)(packet + SIZE_ETHERNET);
+
+				    vlan_priv = (struct vlan_dev_priv*)(packet + SIZE_ETHERNET);
 				    	
 				    // print the packet header data
 				    // printf("Packet no. %d:\n", n);
@@ -262,13 +265,14 @@ int main(int argc, char **argv) {
 
 				    //TODO:
 				    //total size of packet IPv4, IPv6 ------ SOLVED!!!
-				    //ethernet type number (VLAN,...)
+				    //VLAN - 802.1q, 802.1ad
 				    //flags (CWR, ECE) by TCP, unknown offsets for flags ------ SOLVED!!!
 				    //limit issue ------ SOLVED!!!
 				   	//ICMPv4, ICMPv6 - type and code
-				   	//MAC Address first 0
+				   	//MAC Address first 0 ------ SOLVED!!!
 				   	//filter expr ------ SOLVED!!!
 				   	//agregation and sorting
+				   	//fragmentation
 				  
 				    //MacFormating(ether_ntoa((const struct ether_addr *)&eptr->ether_shost), ether_ntoa((const struct ether_addr *)&eptr->ether_dhost));
 
@@ -277,26 +281,11 @@ int main(int argc, char **argv) {
 
 				    		size_ip = my_ip->ip_hl*4;
 
-				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip->ip_len) + SIZE_ETHERNET << " | ";
+				    		cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
 				    
 				    		cout << "Ethernet: ";
 
-				    		cout << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
-				    		
-				    		// for (int i = 0; i < 6; i++) {
-
-				    		// 	// cout << strlen(ether_ntoa((const struct ether_addr *)&eptr->ether_shost)) << endl;
-				    		// 	printf("%20x", &eptr->ether_shost[i]);
-				    		// 	cout << ":";
-				    			
-				    		// }
-
-
-				    		// cout << " " << endl;
-
-				    		// printf("%20x", (const struct ether_addr *)&eptr->ether_dhost[0]);
-
-				    		// cout << " | ";
+				    		cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
 
 				    		cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
 				    		
@@ -369,9 +358,9 @@ int main(int argc, char **argv) {
 
 				    	case ETHERTYPE_IPV6:
 				    		size_ip = 40;
-				    		cout << to_string(p) + ": " + to_string(ts) + " " << ntohs(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) + SIZE_ETHERNET + 40 << " | ";
-				    
-				    		cout << "Ethernet: " << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
+				    		cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+				    		// cout << setprecision(2) << header.len << " | ";
+				    		cout << "Ethernet: " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
 				    		char buffer[INET6_ADDRSTRLEN];
 				    		cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
 				    		
@@ -387,22 +376,62 @@ int main(int argc, char **argv) {
 				    		}
 				    		break;
 
-				    	case ETHERTYPE_VLAN:
-				    	
-				    		cout << "VLAN" << endl;
-							// if (hex_ethertype.compare("0x8100") == 0) {		    	
-						 //    	cout << "IEEE 802.1Q --- IPv6" << endl;
-	
-				   //  		}
-				   //  		else if (hex_ethertype.compare("0x88a8") == 0){
-				   //  			cout << "IEEE 802.1ad --- IPv4" << endl;
+				   //  	case ETHERTYPE_VLAN:
+		
+							// for(int i = 0; i < 80; i++) {
+				   //  			printf("eth %d: %x \n",i, packet[i]);
+							// }
 
+							// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+
+							// cout << "Ethernet: ";
+
+				   //  		cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
+
+				   //  		if (packet[16] == 86 && packet[17] == "dd"){
+				   //  			//IPv6
 				   //  		}
-				    		break;
+				   //  		else if (packet){
+				   //  			//IPv4
+				   //  		}
+
+				   //  		break;
 
 				     	default:
-				     		cout << "default (ICMPv4)" << endl;
-				     		break;
+
+				     		for(int i = 0; i < 80; i++) {
+				    			printf("eth %d: %x \n",i, packet[i]);
+							}
+
+							cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+
+							cout << "Ethernet: ";
+
+							// string str = to_string(packet[12]);
+							// cout << str << endl;
+							// int x = stoi(str, NULL, 10);
+							//cout << hex << stoi(to_string(packet[12]), NULL, 10) << endl;
+
+							// if ((packet[12] == 81) && (packet[13] == 0) && (packet[14] == 0)) {
+							// 	//802.1q
+							// 	cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
+
+							// }
+							// else if ((packet[12] == 88) && (packet[13] == "a8") && (packet[16] == 81) && (packet[17] == 0) && (packet[18] == 0)) {
+							// 	//802.1ad
+							// 	cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " " << to_string(packet[19]) << " | ";
+
+							// }
+
+
+				    		// if ((packet[16] == 86) && (packet[17] == "dd")) {
+				    		// 	//IPv6
+				    		// }
+				    		// else if ((packet[20] == 8) && (packet[21] == 0)) {
+				    		// 	//IPv4
+				    		// }
+
+				    		break;
 				    }
 				   //  	    // std::stringstream stream;
 						 //    // stream << "0x0" << std::hex << ntohs(eptr->ether_type);
