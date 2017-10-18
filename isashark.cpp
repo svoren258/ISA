@@ -182,7 +182,7 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip) {
 				else{
 					cout << ".";
 				}
-				// cout << endl;
+				cout << endl;
 
 				break;
 
@@ -332,18 +332,18 @@ int main(int argc, char **argv) {
 			}
 
 			case 'f':
-			if (optarg) {
-				filter_expr = optarg;
-				cout << "filter type, dir, proto: " << filter_expr << endl;
+				if (optarg) {
+					filter_expr = optarg;
+					cout << "filter type, dir, proto: " << filter_expr << endl;
+				}
 				break;
-			}
 
 			default:
-			cout << "default" << endl;
-			if (optarg) {
-				cout << optarg << endl;
-			}
-			break;
+				cout << "default" << endl;
+				if (optarg) {
+					cout << optarg << endl;
+				}
+				break;
 				// err(1, "Invalid input arguments!\n");
 				// cerr << "Invalid input arguments!" << endl;
 				// exit(1);
@@ -380,6 +380,7 @@ int main(int argc, char **argv) {
 				// 	netaddr = 0;
 				// 	mask = 0;
 				// }
+
 		if (strcmp(filter_expr, "") != 0) {
 			if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
 				err(1,"pcap_compile() failed");
@@ -387,7 +388,6 @@ int main(int argc, char **argv) {
 			if (pcap_setfilter(handle,&fp) == -1)
 				err(1,"pcap_setfilter() failed");
 		}
-
 
   				// read packets from the file
 		while ((packet = pcap_next(handle,&header)) != NULL){
@@ -407,14 +407,9 @@ int main(int argc, char **argv) {
 				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
 			eptr = (struct ether_header *) packet;
 
-			std::stringstream stream;
-			stream << "0x" << std::hex << ntohs(eptr->ether_type);
-			string hex_ethertype(stream.str());
-			cout << hex_ethertype << endl; 
+			my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
 
-				    my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
-
-				    my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
+			my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
 
 				    // my_icmp = (struct icmphdr*)(packet+SIZE_ETHERNET);
 
