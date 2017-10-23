@@ -45,78 +45,178 @@ using namespace std;
 
 void icmp(int version, const u_char *packet) {
 	// bool is_vlan as 4th param?
-	struct icmphdr *my_vlan_icmp;
-	my_vlan_icmp = (struct icmphdr*)(packet);
-	// for (int i = 0; i < 120 ; i++) {
-	// 	my_vlan_icmp = (struct icmphdr*)(packet+i);
-	// 	cout << ntohs(my_vlan_icmp->type) << " " << ntohs(my_vlan_icmp->code) << endl;
-
+	int type;
+	int code;
+	//struct icmphdr *my_vlan_icmp;
+	//my_vlan_icmp = (struct icmphdr*)(packet);
+	//for (int i = 0; i < 120 ; i++) {
+	// 	// my_vlan_icmp = (struct icmphdr*)(packet+i);
+	// 	// cout << ntohs(my_vlan_icmp->type) << " " << ntohs(my_vlan_icmp->code) << endl;
+	// 	printf("eth %d: %d \n",i, packet[i]);
 	// }
+
 	cout << "ICMPv" << version << ": ";
-	// cout << (int)packet[42] << " " << (int)packet[43] << endl;
-	// cout << ntohs(my_vlan_icmp->type) << " " << ntohs(my_vlan_icmp->code);
-	//if(my_icmp->type == 3) {
-		// switch(my_icmp->code) {
+	if (version == 6) {
+		type = (int)packet[54];
+		code = (int)packet[55];
+		cout << type << " " << code << " ";	
 
-		// 	case 0:
-		// 		cout << "net unreachable" << endl;
-		// 		break;
+		if (type == 1){
+			cout << "destinaton unreachable ";
+			switch(code) {
+				case 0:
+					cout << "no route destination" << endl;
+					break;
 
-		// 	case 1:
-		// 		cout << "host unreachable" << endl;
-		// 		break;
+				case 1:
+					cout << "communication with destination administratively prohibited" << endl;
+					break;
 
-		// 	case 2:
-		// 		cout << "protocol unreachable" << endl;
-		// 		break;
+				case 2:
+					cout << "beyond scope of source address" << endl;
+					break;
 
-		// 	case 3:
-		// 		cout << "port unreachable" << endl;
-		// 		break;
+				case 3:
+					cout << "address unreachable" << endl;
+					break;
 
-		// 	case 4:
-		// 		cout << "fragmentation needed and DF set" << endl;
-		// 		break;
+				case 4:
+					cout << "port unreachable" << endl;
+					break;
 
-		// 	case 5:
-		// 		cout << "source route failed" << endl;
-		// 		break;
-		// }
-	//}
-	// else if(my_icmp->type == 11) {
-	// 	switch(my_icmp->code) {
-	// 		case 0:
-	// 			cout << "time to live exceeded in transit" << endl;
-	// 			break;
+				case 5:
+					cout << "source address failed ingress/engress policy" << endl;
+					break;
 
-	// 		case 1:
-	// 			cout << "fragment reassembly time exceeeded" << endl;
-	// 			break;
-	// 	} 
-	// }
+				case 6:
+					cout << "reject route to destination" << endl;
+					break;
+			}
+		}
 
-	// else if(my_icmp->type == 12) {
-	// 	if(my_icmp->code == 0) {
-	// 		cout << "pointer indicates the error" << endl;
-	// 	}
-	// }
+		else if (type == 2) {
+			cout << "packet too big" << endl;
+			 
+		}
 
-	// else if(my_icmp->type == 5) {
-	// 	switch(my_icmp->code) {
-	// 		case 0:
-	// 			cout << "Redirect datagrams for the Network." << endl;
-	// 			break;
-	// 		case 1:
-	// 			cout << "Redirect datagrams for the Host." << endl;
-	// 			break;
-	// 		case 2:
-	// 			cout << "Redirect datagrams for the Type of Service and Network." << endl;
-	// 			break;
-	// 		case 3:
-	// 			cout << "Redirect datagrams for the Type of Service and Host." << endl;
-	// 			break; 
-	// 	}
-	// }
+		else if (type == 3) {
+			cout << "time exceeded ";
+			if (code == 0) {
+				cout << "hop limit exceeded in transit" << endl;
+			}
+
+			else if (code == 1) {
+				cout << "fragment reassembly time exceeded" << endl;
+			}
+		}
+
+		else if (type == 4) {
+			cout << "parameter problem ";
+			switch(code) {
+				case 0:
+					cout << "rrroneous header field encountered" << endl;
+					break;
+
+				case 1:
+					cout << "unrecognized Next Header type encountered" << endl;
+					break;
+
+				case 2:
+					cout << "urecognized IPv6 option encountered" << endl;
+					break;
+			}
+		}
+
+		else if ((type == 100) || (type == 101) || (type == 200) || (type == 201)) {
+			cout << "private experimentation ";
+		}
+	}
+	else if (version == 4) {
+		type = (int)packet[42];
+		code = (int)packet[43];
+		cout << type << " " << code << " ";	
+
+		if (type == 0) {
+			cout << "echo message" << endl;
+		}
+
+		else if (type == 3) {
+			switch(code) {
+				case 0:
+					cout << "net unreachable" << endl;
+					break;
+
+				case 1:
+					cout << "host unreachable" << endl;
+					break;
+
+				case 2:
+					cout << "protocol unreachable" << endl;
+					break;
+
+				case 3:
+					cout << "port unreachable" << endl;
+					break;
+
+				case 4:
+					cout << "fragmentation needed and DF set" << endl;
+					break;
+
+				case 5:
+					cout << "source route failed" << endl;
+					break;
+			}
+		}
+		else if (type == 5) {
+			switch(code) {
+				case 0:
+					cout << "redirect datagrams for the Network" << endl;
+					break;
+
+				case 1:
+					cout << "redirect datagrams for the Host" << endl;
+					break;
+
+				case 2:
+					cout << "redirect datagrams for the Type of Service and Network" << endl;
+					break;
+
+				case 3:
+					cout << "redirect datagrams for the Type of Service and Host" << endl;
+					break;
+			}
+		}
+		else if (type == 8) {
+			cout << "echo reply message" << endl;
+		}
+
+		else if (type == 11) {
+			if (code == 0) {
+				cout << "time to live exceeded in transit" << endl;
+			}
+			else if (code == 1) {
+				cout << "fragment reassembly time exceeded" << endl;
+			}
+		}
+		else if (type == 12) {
+			// cout << "parameter problem ";
+			if (code == 0) {
+				cout << "pointer indicates error" << endl;
+			}
+		} 
+		else if (type == 13) {
+			cout << "timestamp message" << endl;
+		}
+		else if (type == 14) {
+			cout << "timestamp reply message" << endl;
+		}
+		else if (type == 15) {
+			cout << "information request message" << endl;
+		} 
+		else if (type == 16) {
+			cout <<  "information reply message" << endl;
+		}		
+	}
 }
 
 
@@ -429,12 +529,12 @@ int main(int argc, char **argv) {
 				    //VLAN - 802.1q, 802.1ad ------ SOLVED!!!
 				    //flags (CWR, ECE) by TCP, unknown offsets for flags ------ SOLVED!!!
 				    //limit issue ------ SOLVED!!!
-				   	//ICMPv4, ICMPv6 - type and code ???
+				   	//ICMPv4, ICMPv6 - type and code ??? ----- PARTIAL SOLVED ???!!!
 				   	//MAC Address first 0 ------ SOLVED!!!
 				   	//filter expr ------ SOLVED!!!
 				   	//agregation and sorting
 				   	//fragmentation
-					//VLAN IPv4 size_ip ???
+					//VLAN IPv4 size_ip ----- SOLVED!!!
 				    
 				    switch (ntohs(eptr->ether_type)) {
 				    	case ETHERTYPE_IP:
