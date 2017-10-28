@@ -165,11 +165,12 @@ void Packet::set_values(int x,
 }
 
 
-// void Packet::output() {
-// 	cout << num << ": " << ts << " " << len << " | ";
-// 	cout << "Ethernet: ";
-// 	cout << endl;
-// }
+void Packet::output() {
+	cout << this->num << ": " << this->ts << " " << this->len << " | " << "Ethernet: " << this->src_mac << " " << this->dst_mac << " " << this->vlan_id << "| " << this->ipv << ": " << this->ip_addr_src << " " << this->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
+	this->ttlOrHop();
+	cout << " | ";
+	this->l4_output();
+}
 
 void Packet::ttlOrHop() {
 	if (this->ttl != -1) {
@@ -214,7 +215,6 @@ void Packet::l4_output() {
 	if (this->flags.compare("") != 0) {
 		cout << this->flags;
 	}
-	
 	
 	if (this->vlan_ver.compare("") != 0) {
 		cout << this->vlan_ver;
@@ -498,6 +498,9 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet
 			seq_num = my_tcp->th_seq;
 			ack_byte = my_tcp->th_ack;
 
+			cout << endl;
+			cout << "ack: " << ack_byte << endl;
+			cout << "seq: " << seq_num << endl;
 
 				if (my_tcp->th_flags & TH_CWR){
 					cout << "C";
@@ -600,6 +603,19 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet
 // 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[5];
 // }
 
+bool sortByBytes(const Packet &p1, const Packet &p2) {
+	return p1.len > p2.len;
+}
+
+//TCP Flags
+# define FIN 0x01;
+# define SYN 0x02;
+# define RST 0x04;
+# define PSH 0x08;
+# define ACK 0x10;
+# define URG 0x20;
+# define ECE 0x40;
+# define CWR 0x80;
 
 int main(int argc, char **argv) {
 
@@ -655,12 +671,6 @@ int main(int argc, char **argv) {
 
 	vector<Packet> packets;
 	//sorting variables
-
-	map<int,int> d;
-	map<int,int>::iterator it;
-	vector< sort_map > v;
-	vector< sort_map >::iterator itv;
-	sort_map sm;
 
 	char src_mac_ch[18];
 	string src_mac;
@@ -869,8 +879,14 @@ int main(int argc, char **argv) {
 
 					    	size_ip = my_ip->ip_hl*4;
 
+					  //   	my_tcp = (struct tcphdr *) (packet); // pointer to the TCP header; packet+???
+							// cout << endl;
+							// cout << "seq and ack main" << endl;
+							// cout << "seq: " << (uint32_t)my_tcp->th_seq << endl;
+							// cout << "ack: " << (uint32_t)my_tcp->th_ack << endl;
+							// cout << endl;
+
 					    	cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-					    	d[p] = header.len;
 					    	// pac.set_values(p, ts, header.len);
 					    	cout << "Ethernet: ";
 					  //   	format_mac_addr(eptr->ether_shost);
@@ -901,6 +917,8 @@ int main(int argc, char **argv) {
 							ttl = my_ip->ip_ttl;
 					    	cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
 
+					    	
+
 					    	ipv4_protocol(my_ip, packet, size_ip, &pac);
 
 					    	break;
@@ -909,7 +927,6 @@ int main(int argc, char **argv) {
 				    	case ETHERTYPE_IPV6:
 					    	size_ip = 40;
 					    	cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-					    	d[p] = header.len;
 					    	// pac.set_values(p, ts, header.len);
 					    	// cout << setprecision(2) << header.len << " | ";
 					    	//cout << "Ethernet: " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
@@ -1125,35 +1142,23 @@ int main(int argc, char **argv) {
 					pcap_close(handle);
 					optind++;
 				}
-				
-				for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-				    cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
-				    it->ttlOrHop();
-				    cout << " | ";
-				    it->l4_output();
+
+				if (sort_by_bytes) {
+					sort(packets.begin(), packets.end(), sortByBytes);
+					for (Packet &pack : packets){
+						pack.output();
+					}
+				}
+				else if (sort_by_packets){
 
 				}
-					
-				////sort not objects
-				for (it = d.begin(); it != d.end(); ++it)
-				{
-					sm.key = (*it).first; sm.val = (*it).second;
-					v.push_back(sm);
+				else {
+					for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+					    cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
+					    it->ttlOrHop();
+					    cout << " | ";
+					    it->l4_output();
+					}
 				}
-				for (itv = v.begin(); itv != v.end(); ++itv)
-				{
-					cout << (*itv).key << " : " << (*itv).val << endl;
-				}
-				
-				sort(v.begin(),v.end(),Sort_by);
-				
-				cout << "sorted" << endl;
-				for (itv = v.begin(); itv != v.end(); ++itv)
-				{
-					cout << (*itv).key << " : " << (*itv).val << endl;
-				}
-
-
-
 				return 0;
 			}
