@@ -498,10 +498,6 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet
 			seq_num = my_tcp->th_seq;
 			ack_byte = my_tcp->th_ack;
 
-			// cout << endl;
-			// cout << "ack: " << (uint32_t)ack_byte << endl;
-			// cout << "seq: " << (uint32_t)seq_num << endl;
-
 				if (my_tcp->th_flags & TH_CWR){
 					// cout << "C";
 					flags = flags + "C";
@@ -589,20 +585,6 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet
 
 }
 
-// void format_mac_addr(unsigned char *mac_addr) {
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[0];
-// 	cout << ":";
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[1];
-// 	cout << ":";
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[2];
-// 	cout << ":";
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[3];
-// 	cout << ":";
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[4];
-// 	cout << ":";
-// 	cout << setfill('0') << setw(2) << hex << (int)mac_addr[5];
-// }
-
 bool sortByBytes(const Packet &p1, const Packet &p2) {
 	return p1.len > p2.len;
 }
@@ -688,17 +670,12 @@ int main(int argc, char **argv) {
 	int dst_port = -1;
 	string vlan_id = "";
 
-	
-
-	// string files;
-
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
 			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] file ..." << endl;
 			exit(0);
 		}
 	}
-
 
 	int c;
 	while ((c = getopt (argc, argv, "a:s:l:f:")) != -1) {
@@ -874,279 +851,281 @@ int main(int argc, char **argv) {
 				   	//agregation
 				   	//fragmentation
 
-				    switch (ntohs(eptr->ether_type)) {
-				    	case ETHERTYPE_IP:
+		    switch (ntohs(eptr->ether_type)) {
+		    	case ETHERTYPE_IP:
 
-					    	size_ip = my_ip->ip_hl*4;
+			    	size_ip = my_ip->ip_hl*4;
+			    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
 
-					    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-					    	// pac.set_values(p, ts, header.len);
-					    	// cout << "Ethernet: ";
-					  //   	format_mac_addr(eptr->ether_shost);
-							// cout << " ";
-							// format_mac_addr(eptr->ether_dhost);
-							// cout << " | ";
-							// char src_mac_ch[18];
-							snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-							src_mac = src_mac_ch;
-					    	
-							//char dst_mac_ch[18];
-							snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-							dst_mac = dst_mac_ch;
+			    	// pac.set_values(p, ts, header.len);
+			    	// cout << "Ethernet: ";
+			  //   	format_mac_addr(eptr->ether_shost);
+					// cout << " ";
+					// format_mac_addr(eptr->ether_dhost);
+					// cout << " | ";
+					// char src_mac_ch[18];
+					snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+					src_mac = src_mac_ch;
+			    	
+					//char dst_mac_ch[18];
+					snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+					dst_mac = dst_mac_ch;
 
-					    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-				    		// cout << " ";
-					    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-					    	// cout << " | ";
-					    	// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
-					    	ipv = "IPv4";
+			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+		    		// cout << " ";
+			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+			    	// cout << " | ";
+			    	// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
+			    	ipv = "IPv4";
 
-					    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
-							ip_addr_src = ip_addr_src_ch;
+			    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
+					ip_addr_src = ip_addr_src_ch;
 
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_src));
-							ip_addr_dst = ip_addr_dst_ch;
+					snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_src));
+					ip_addr_dst = ip_addr_dst_ch;
 
-							ttl = my_ip->ip_ttl;
-					    	// cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
+					ttl = my_ip->ip_ttl;
+			    	// cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
 
-					    	ipv4_protocol(my_ip, packet, size_ip, &pac);
+			    	
 
-					    	break;
+			    	ipv4_protocol(my_ip, packet, size_ip, &pac);
+
+			    	break;
 
 
-				    	case ETHERTYPE_IPV6:
-					    	size_ip = 40;
-					    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-					    	// pac.set_values(p, ts, header.len);
-					    	// cout << setprecision(2) << header.len << " | ";
-					    	//cout << "Ethernet: " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
-					    	// cout << "Ethernet: ";
-					  //   	format_mac_addr(eptr->ether_shost);
-							// cout << " ";
-							// format_mac_addr(eptr->ether_dhost);
-							// cout << " | ";
+		    	case ETHERTYPE_IPV6:
+			    	size_ip = 40;
+			    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+			    	// pac.set_values(p, ts, header.len);
+			    	// cout << setprecision(2) << header.len << " | ";
+			    	//cout << "Ethernet: " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
+			    	// cout << "Ethernet: ";
+			  //   	format_mac_addr(eptr->ether_shost);
+					// cout << " ";
+					// format_mac_addr(eptr->ether_dhost);
+					// cout << " | ";
 
-					    	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-							src_mac = src_mac_ch;
-					    	
-							//char dst_mac_ch[18];
-							snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-							dst_mac = dst_mac_ch;
+			    	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+					src_mac = src_mac_ch;
+			    	
+					//char dst_mac_ch[18];
+					snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+					dst_mac = dst_mac_ch;
 
-					    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-				    		// cout << " ";
-					    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-					    	// cout << " | ";
+			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+		    		// cout << " ";
+			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+			    	// cout << " | ";
 
-					    	char buffer[INET6_ADDRSTRLEN];
+			    	char buffer[INET6_ADDRSTRLEN];
 
+					ipv = "IPv6";
+
+					snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
+					ip_addr_src = ip_addr_src_ch;
+
+					snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
+					ip_addr_dst = ip_addr_dst_ch;
+
+					hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+
+			    	// cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
+
+			    	switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
+			    		case 17:
+				    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
+				    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+				    		l4_protocol = "UDP: ";
+				    		src_port = ntohs(my_udp->uh_sport);
+				    		dst_port = ntohs(my_udp->uh_dport);
+				    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
+				    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
+				    		break;
+
+				    	default:
+				    		icmp(6, packet, &pac);
+				    		break;
+				    }
+				    break;
+
+			    default:
+		   //   		for(int i = 0; i < 120; i++) {
+		   //  			printf("eth %d: %d \n",i, packet[i]);
+					// 	//cout << HEX(packet[i]) << endl;
+					// }
+			    	my_vlan_ip = (struct ip*)(packet+22);
+			    	size_ip = my_vlan_ip->ip_hl*4;
+			    	my_vlan_ip6 = (struct ip6_hdr*)(packet+18);
+
+			    	if ((packet[12] == 0x81) && (packet[13] == 0x00)) {
+						vlan1q = true;//802.1q
+						// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+						// cout << "Ethernet: ";
+
+						snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+						src_mac = src_mac_ch;
+			    	
+					//char dst_mac_ch[18];
+						snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+						dst_mac = dst_mac_ch;
+
+				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+			    		// cout << " ";
+				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+				    	// cout << " | ";
+
+				    	vlan_id = to_string(packet[15]) + " ";
+						 //<< " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
+						// cout << "old:" << endl;
+						// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
+
+					}
+					else if ((packet[12] == 0x88) && (packet[13] == 0xa8) && (packet[16] == 0x81) && (packet[17] == 0x00)) {
+						vlan1ad = true;//802.1ad
+						// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
+						// cout << "Ethernet: ";
+
+						snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+						src_mac = src_mac_ch;
+			    	
+					//char dst_mac_ch[18];
+						snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+						dst_mac = dst_mac_ch;
+
+				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+			    		// cout << " ";
+				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+				    	// cout << " | ";
+						// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " " << to_string(packet[19]) << " | ";
+						vlan_id = to_string(packet[15]) + " ";
+						vlan_id = vlan_id + to_string(packet[19]) + " ";
+
+					}
+					else {
+						cerr << "Unknown EtherType value!" << endl;
+						exit(1);
+					}
+
+					if (vlan1q) {
+						if ((packet[16] == 0x86) && (packet[17] == 0xdd)) {
+							// cout << "IPv6: ";
 							ipv = "IPv6";
 
-							snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
+							snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
 							ip_addr_src = ip_addr_src_ch;
-
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
+							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
 							ip_addr_dst = ip_addr_dst_ch;
 
-							hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+							hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
 
-					    	// cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
+							// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
 
-					    	switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
-					    		case 17:
-						    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-						    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-						    		l4_protocol = "UDP: ";
-						    		src_port = ntohs(my_udp->uh_sport);
-						    		dst_port = ntohs(my_udp->uh_dport);
-						    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
-						    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
-						    		break;
+							if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
+					    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
+					    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+					    		l4_protocol = "UDP: ";
+					    		src_port = ntohs(my_udp->uh_sport);
+					    		dst_port = ntohs(my_udp->uh_dport);
+					    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");	
+					    	}
+					    	else {
+					    		icmp(6, packet, &pac);
+					    	}
 
-						    	default:
-						    		icmp(6, packet, &pac);
-						    		break;
-						    }
-						    break;
+					    }
+					    else if ((packet[16] == 0x08) && (packet[17] == 0x00)){
+					    	// cout << "IPv4: ";
+					    	ipv = "IPv4";
+					    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
+							ip_addr_src = ip_addr_src_ch;
 
-					    default:
-				   //   		for(int i = 0; i < 120; i++) {
-				   //  			printf("eth %d: %d \n",i, packet[i]);
-							// 	//cout << HEX(packet[i]) << endl;
-							// }
-					    	my_vlan_ip = (struct ip*)(packet+22);
-					    	size_ip = my_vlan_ip->ip_hl*4;
-					    	my_vlan_ip6 = (struct ip6_hdr*)(packet+18);
+							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
+							ip_addr_dst = ip_addr_dst_ch;
 
-					    	if ((packet[12] == 0x81) && (packet[13] == 0x00)) {
-								vlan1q = true;//802.1q
-								// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-								// cout << "Ethernet: ";
+							ttl = my_vlan_ip->ip_ttl;
 
-								snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-								src_mac = src_mac_ch;
-					    	
-							//char dst_mac_ch[18];
-								snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-								dst_mac = dst_mac_ch;
-
-						    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-					    		// cout << " ";
-						    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-						    	// cout << " | ";
-
-						    	vlan_id = to_string(packet[15]) + " ";
-								 //<< " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
-								// cout << "old:" << endl;
-								// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
-
-							}
-							else if ((packet[12] == 0x88) && (packet[13] == 0xa8) && (packet[16] == 0x81) && (packet[17] == 0x00)) {
-								vlan1ad = true;//802.1ad
-								// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-								// cout << "Ethernet: ";
-
-								snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-								src_mac = src_mac_ch;
-					    	
-							//char dst_mac_ch[18];
-								snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-								dst_mac = dst_mac_ch;
-
-						    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-					    		// cout << " ";
-						    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-						    	// cout << " | ";
-								// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " " << to_string(packet[19]) << " | ";
-								vlan_id = to_string(packet[15]) + " ";
-								vlan_id = vlan_id + to_string(packet[19]) + " ";
-
-							}
-							else {
-								cerr << "Unknown EtherType value!" << endl;
-								exit(1);
-							}
-
-							if (vlan1q) {
-								if ((packet[16] == 0x86) && (packet[17] == 0xdd)) {
-									// cout << "IPv6: ";
-									ipv = "IPv6";
-
-									snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
-									ip_addr_src = ip_addr_src_ch;
-									snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
-									ip_addr_dst = ip_addr_dst_ch;
-
-									hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
-									// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
-
-									if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
-							    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
-							    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-							    		l4_protocol = "UDP: ";
-							    		src_port = ntohs(my_udp->uh_sport);
-							    		dst_port = ntohs(my_udp->uh_dport);
-							    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");	
-							    	}
-							    	else {
-							    		icmp(6, packet, &pac);
-							    	}
-
-							    }
-							    else if ((packet[16] == 0x08) && (packet[17] == 0x00)){
-							    	// cout << "IPv4: ";
-							    	ipv = "IPv4";
-							    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
-									ip_addr_src = ip_addr_src_ch;
-
-									snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
-									ip_addr_dst = ip_addr_dst_ch;
-
-									ttl = my_vlan_ip->ip_ttl;
-
-							    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
-							    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
-							    }
-							}
-							else if (vlan1ad) {
-								if ((packet[20] == 0x86) && (packet[21] == 0xdd)){
-									// cout << "IPv6: ";
-									ipv = "IPv6";
-
-
-									snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
-									ip_addr_src = ip_addr_src_ch;
-
-									snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
-									ip_addr_dst = ip_addr_dst_ch;
-
-									hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
-									// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";				    				
-									if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
-							    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
-							    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;	
-							    		l4_protocol = "UDP: ";
-							    		src_port = ntohs(my_udp->uh_sport);
-							    		dst_port = ntohs(my_udp->uh_dport);
-							    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
-							    	}
-							    	else {
-							    		icmp(6, packet, &pac);
-							    	}
-							    } 
-							    else if ((packet[20] == 0x08) && (packet[21] == 0x00)) {
-							    	// cout << "IPv4: ";
-							    	ipv = "IPv4";
-
-							    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
-									ip_addr_src = ip_addr_src_ch;
-
-									snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
-									ip_addr_dst = ip_addr_dst_ch;
-
-									ttl = my_vlan_ip->ip_ttl;
-
-							    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
-							    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
-							    }
-							}
-							break;
-						}
-						// cout << endl;
-						// cout << "TTL " << ttl << endl;
-						// cout << "HOP " << hop_limit << endl;
-						// pac.output();
-						// src_mac = sprintf(src_mac_ch, "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5])
-						pac.set_values(p, ts, header.len, src_mac, dst_mac, vlan_id, ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
-						packets.push_back(pac);
-
+					    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
+					    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
+					    }
 					}
+					else if (vlan1ad) {
+						if ((packet[20] == 0x86) && (packet[21] == 0xdd)){
+							// cout << "IPv6: ";
+							ipv = "IPv6";
 
-					// printf("End of file reached ...\n");
-				// close the capture device and deallocate resources
-					pcap_close(handle);
-					optind++;
-				}
 
-				if (sort_by_bytes) {
-					sort(packets.begin(), packets.end(), sortByBytes);
-					for (Packet &pack : packets){
-						pack.output();
+							snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
+							ip_addr_src = ip_addr_src_ch;
+
+							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
+							ip_addr_dst = ip_addr_dst_ch;
+
+							hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+
+							// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";				    				
+							if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
+					    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
+					    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;	
+					    		l4_protocol = "UDP: ";
+					    		src_port = ntohs(my_udp->uh_sport);
+					    		dst_port = ntohs(my_udp->uh_dport);
+					    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
+					    	}
+					    	else {
+					    		icmp(6, packet, &pac);
+					    	}
+					    } 
+					    else if ((packet[20] == 0x08) && (packet[21] == 0x00)) {
+					    	// cout << "IPv4: ";
+					    	ipv = "IPv4";
+
+					    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
+							ip_addr_src = ip_addr_src_ch;
+
+							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
+							ip_addr_dst = ip_addr_dst_ch;
+
+							ttl = my_vlan_ip->ip_ttl;
+
+					    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
+					    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
+					    }
 					}
-				}
-				else if (sort_by_packets){
-
-				}
-				else {
-					for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-					    cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
-					    it->ttlOrHop();
-					    cout << " | ";
-					    it->l4_output();
-					}
-				}
-				return 0;
+					break;
 			}
+				// cout << endl;
+				// cout << "TTL " << ttl << endl;
+				// cout << "HOP " << hop_limit << endl;
+				// pac.output();
+				// src_mac = sprintf(src_mac_ch, "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5])
+			pac.set_values(p, ts, header.len, src_mac, dst_mac, vlan_id, ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
+			packets.push_back(pac);
+
+		}
+
+		// printf("End of file reached ...\n");
+	// close the capture device and deallocate resources
+		pcap_close(handle);
+		optind++;
+	}
+
+	if (sort_by_bytes) {
+		sort(packets.begin(), packets.end(), sortByBytes);
+		for (Packet &pack : packets){
+			pack.output();
+		}
+	}
+	else if (sort_by_packets){
+
+	}
+	else {
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+		    cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
+		    it->ttlOrHop();
+		    cout << " | ";
+		    it->l4_output();
+		}
+	}
+	return 0;
+}
