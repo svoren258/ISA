@@ -44,17 +44,89 @@ using namespace std;
 
 #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
 
-class sort_map
-{
-  public:
-	int key;
-	int val;
+
+//TCP Flags
+# define FIN 0x01;
+# define SYN 0x02;
+# define RST 0x04;
+# define PSH 0x08;
+# define ACK 0x10;
+# define URG 0x20;
+# define ECE 0x40;
+# define CWR 0x80;
+
+class AggregatedPackets {
+	public:
+		string aggrkey = "";
+		int num = 0;
+		int size = 0;
+		// bool is_created = false;
+		void print_aggr();
 };
 
-bool Sort_by(const sort_map& a ,const sort_map& b)
-{
-	return a.val > b.val;
+void AggregatedPackets::print_aggr() {
+	cout << this->aggrkey << ": " << this->num << " " << this->size << endl;
 }
+
+void aggregate_packet(vector<AggregatedPackets> *aggr_pac, string aggr_key, int len){
+	// vector<AggregatedPackets> aggr_pac;
+	// cout << "values in aggregate_packet: " << aggr_key << " len: " << len << endl;
+	// aggr_pac->push_back(AggregatedPackets());
+	// AggregatedPackets Pac;
+	// aggr_pac->push_back(Pac);
+	bool record_exists = false;
+
+	if(aggr_pac->empty()) {
+		// cout << "empty" << endl;
+		AggregatedPackets Pac;
+		Pac.aggrkey = aggr_key;
+		Pac.num++;
+		Pac.size = len;
+		// Pac.is_created = true;
+		aggr_pac->push_back(Pac);
+
+		// for (vector<AggregatedPackets>::iterator it = aggr_pac->begin(); it != aggr_pac->end(); ++it) {
+		// 	it->print_aggr();
+		// 	cout << endl;
+		// }
+	}
+	else {
+		for (vector<AggregatedPackets>::iterator it = aggr_pac->begin(); it != aggr_pac->end(); ++it) {
+			// cout << "FOR" << endl;
+			if (it->aggrkey.compare(aggr_key) == 0) {
+				// cout << "IF" << endl;
+				it->num++;
+				it->size += len;
+				record_exists = true;
+			}
+
+			// else if ((it->aggrkey.compare(it->is_created) {
+			// 	cout << "ELSE IF" << endl;
+			// 	continue;
+			// }
+			// else {
+			// 	continue;
+			// }
+		}
+
+		if (!record_exists) {
+			// cout << "creating new rec" << endl;
+			AggregatedPackets Pac;
+			Pac.aggrkey = aggr_key;
+			Pac.num++;
+			Pac.size = len;
+			// Pac.is_created = true;
+			aggr_pac->push_back(Pac);
+
+			// for (vector<AggregatedPackets>::iterator it = aggr_pac->begin(); it != aggr_pac->end(); ++it) {
+			// 	it->print_aggr();
+			// 	cout << endl;
+			// }
+		}
+				// exit(1);	
+	}
+}
+
 
 class Packet
 {
@@ -531,15 +603,38 @@ bool sortByBytes(const Packet &p1, const Packet &p2) {
 	return p1.len > p2.len;
 }
 
-//TCP Flags
-# define FIN 0x01;
-# define SYN 0x02;
-# define RST 0x04;
-# define PSH 0x08;
-# define ACK 0x10;
-# define URG 0x20;
-# define ECE 0x40;
-# define CWR 0x80;
+bool sortByBytes_a(const AggregatedPackets &p1, const AggregatedPackets &p2) {
+	return p1.size > p2.size;
+}
+
+bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2) {
+	return p1.num > p2.num;
+}
+
+// void aggregation_output(vector<Packet> *packets, vector<AggregatedPackets> *aggr_packets, string aggr_key, int size, bool sort_by_packets, bool sort_by_bytes) {
+// 		// cout << "mam srcip: " << aggrkey << endl;
+// 	for (vector<Packet>::iterator it = packets->begin(); it != packets->end(); ++it) {
+// 		aggregate_packet(aggr_packets, aggr_key, size);
+// 	}
+// 	if (sort_by_packets){
+// 		sort(aggr_packets->begin(), packets->end(), sortByPackets);
+// 		for (AggregatedPackets &aggrPack : aggr_packets) {
+// 			aggrPack.print_aggr();
+// 		}
+// 	}
+// 	else if (sort_by_bytes) {
+// 		sort(packets->begin(), packets->end(), sortByBytes);
+// 		for (AggregatedPackets &aggrPack : aggr_packets){
+// 			aggrPack.print_aggr();
+// 		}
+// 	} 
+// 	else {
+// 		for (vector<AggregatedPackets>::iterator it2 = aggr_packets->begin(); it2 != aggr_packets->end(); ++it2) {
+// 			it2->print_aggr();
+// 		}
+// 	}
+// }
+
 
 int main(int argc, char **argv) {
 
@@ -594,7 +689,11 @@ int main(int argc, char **argv) {
 
 
 	vector<Packet> packets;
+	vector<AggregatedPackets> aggr_packets;
 	//sorting variables
+
+	string aggrKey;
+
 
 	char src_mac_ch[18];
 	string src_mac;
@@ -614,7 +713,7 @@ int main(int argc, char **argv) {
 
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
-			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] file ..." << endl;
+			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] files ..." << endl;
 			exit(0);
 		}
 	}
@@ -626,7 +725,7 @@ int main(int argc, char **argv) {
 			if (optarg) {
 				aggrkey = optarg;
 					// aggr_key = true;
-				cout << "aggrkey: " << aggrkey << endl;
+				// cout << "aggrkey: " << aggrkey << endl;
 
 				if (strcmp(aggrkey, "srcmac") == 0) {
 					aggr_srcmac = true;
@@ -662,7 +761,7 @@ int main(int argc, char **argv) {
 			case 's':
 			if (optarg) {
 				sort_key = optarg;
-				cout << "sort key:" << sort_key << endl;
+				// cout << "sort key:" << sort_key << endl;
 				if (strcmp(sort_key, "packets") == 0) {
 					sort_by_packets = true;
 				}
@@ -1052,14 +1151,168 @@ int main(int argc, char **argv) {
 		optind++;
 	}
 
-	if (sort_by_bytes) {
+	// if (sort_by_bytes) {
+	// 	sort(packets.begin(), packets.end(), sortByBytes);
+	// 	for (Packet &pack : packets){
+	// 		pack.output();
+	// 	}
+	// }
+	 
+	// if (sort_by_packets){
+	// 	sort(aggr_packets.begin(), packets.end(), sortByPackets);
+	// 	for (AggregatedPackets &aggrPack : aggr_packets) {
+	// 		aggrPack.print_aggr();
+	// 	}
+	// }
+
+
+	if (aggr_srcip) {
+		// cout << "mam srcip: " << aggrkey << endl;
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, it->ip_addr_src, it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+	}
+
+	else if (aggr_dstip) {
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, it->ip_addr_dst, it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+	}
+
+	else if (aggr_srcmac) {
+
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, it->src_mac, it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+
+	}
+
+	else if (aggr_dstmac) {
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, it->dst_mac, it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+	}
+
+	else if (aggr_srcport) {
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, to_string(it->src_port), it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+	}
+
+	else if (aggr_dstport) {
+
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			aggregate_packet(&aggr_packets, to_string(it->dst_port), it->len);
+		}
+		if (sort_by_packets){
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+			for (AggregatedPackets &aggrPack : aggr_packets) {
+				aggrPack.print_aggr();
+			}
+		}
+		else if (sort_by_bytes) {
+			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+			for (AggregatedPackets &aggrPack : aggr_packets){
+				aggrPack.print_aggr();
+			}
+		} 
+		else {
+			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+				it2->print_aggr();
+			}
+		}
+
+	}
+	else if (sort_by_bytes) {
 		sort(packets.begin(), packets.end(), sortByBytes);
 		for (Packet &pack : packets){
 			pack.output();
 		}
-	}
-	else if (sort_by_packets){
-
 	}
 	else {
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
