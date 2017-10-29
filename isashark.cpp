@@ -44,6 +44,8 @@ using namespace std;
 
 #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
 
+#define _USE_BSD
+#define __FAVOR_BSD
 
 //TCP Flags
 # define FIN 0x01;
@@ -65,6 +67,10 @@ class AggregatedPackets {
 };
 
 void AggregatedPackets::print_aggr() {
+	if (this->aggrkey.compare("-1") == 0) {
+		cerr << "Aggregation fault." << endl;
+		exit(1);
+	}
 	cout << this->aggrkey << ": " << this->num << " " << this->size << endl;
 }
 
@@ -99,14 +105,6 @@ void aggregate_packet(vector<AggregatedPackets> *aggr_pac, string aggr_key, int 
 				it->size += len;
 				record_exists = true;
 			}
-
-			// else if ((it->aggrkey.compare(it->is_created) {
-			// 	cout << "ELSE IF" << endl;
-			// 	continue;
-			// }
-			// else {
-			// 	continue;
-			// }
 		}
 
 		if (!record_exists) {
@@ -859,10 +857,6 @@ int main(int argc, char **argv) {
 			}
 
 			long long ts = 100000 * header.ts.tv_sec + header.ts.tv_usec;
-				    // unsigned short int hdr_len = ntohs(my_ip->ip_len);
-				    // unsigned int total_len = hdr_len + my_ip->ip_hl*4 - 6;
-				    // cout << total_len << endl;
-				    //ntohs(my_ip->ip_len) + ntohs(my_ip->ip_id) - 6
 
 				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
 			eptr = (struct ether_header *) packet;
@@ -888,23 +882,15 @@ int main(int argc, char **argv) {
 				   	//filter expr ------ SOLVED!!!
 					//VLAN IPv4 size_ip ----- SOLVED!!!
 					//TODO
-					//sort
-				   	//agregation
+					//sort ----- SOLVED!!!
+				   	//agregation ----- SOLVED!!!
 				   	//fragmentation
 
 		    switch (ntohs(eptr->ether_type)) {
 		    	case ETHERTYPE_IP:
 
 			    	size_ip = my_ip->ip_hl*4;
-			    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
 
-			    	// pac.set_values(p, ts, header.len);
-			    	// cout << "Ethernet: ";
-			  //   	format_mac_addr(eptr->ether_shost);
-					// cout << " ";
-					// format_mac_addr(eptr->ether_dhost);
-					// cout << " | ";
-					// char src_mac_ch[18];
 					snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
 					src_mac = src_mac_ch;
 			    	
@@ -937,15 +923,6 @@ int main(int argc, char **argv) {
 
 		    	case ETHERTYPE_IPV6:
 			    	size_ip = 40;
-			    	// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-			    	// pac.set_values(p, ts, header.len);
-			    	// cout << setprecision(2) << header.len << " | ";
-			    	//cout << "Ethernet: " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
-			    	// cout << "Ethernet: ";
-			  //   	format_mac_addr(eptr->ether_shost);
-					// cout << " ";
-					// format_mac_addr(eptr->ether_dhost);
-					// cout << " | ";
 
 			    	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
 					src_mac = src_mac_ch;
@@ -984,8 +961,12 @@ int main(int argc, char **argv) {
 				    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
 				    		break;
 
+
+
 				    	default:
-				    		icmp(6, packet, &pac);
+		    			//extend IPv6 TCP: port value at index 79
+		    			// printf("tcp: %d \n", packet[79]);
+					  	icmp(6, packet, &pac);
 				    		break;
 				    }
 				    break;
@@ -1150,20 +1131,6 @@ int main(int argc, char **argv) {
 		pcap_close(handle);
 		optind++;
 	}
-
-	// if (sort_by_bytes) {
-	// 	sort(packets.begin(), packets.end(), sortByBytes);
-	// 	for (Packet &pack : packets){
-	// 		pack.output();
-	// 	}
-	// }
-	 
-	// if (sort_by_packets){
-	// 	sort(aggr_packets.begin(), packets.end(), sortByPackets);
-	// 	for (AggregatedPackets &aggrPack : aggr_packets) {
-	// 		aggrPack.print_aggr();
-	// 	}
-	// }
 
 
 	if (aggr_srcip) {
