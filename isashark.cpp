@@ -1,3 +1,11 @@
+#ifdef _USE_BSD
+#define _USE_BSD
+#endif
+
+#ifdef __FAVOR_BSD
+#define __FAVOR_BSD
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pcap.h>
@@ -8,21 +16,24 @@
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-//#include <netinet/ip_icmp.h>
-#include <arpa/inet.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
 #include <netinet/if_ether.h> 
-#include <linux/if_ether.h>
+#include <arpa/inet.h>
+// #include <linux/if_ether.h>
 #include <err.h>
 #include <iostream>
 #include <ctype.h>
 #include <unistd.h>
 #include <string.h>
 #include <sstream>
-#include <linux/icmp.h>
 #include <getopt.h>
-#include <linux/if_vlan.h>
-#include <pcap/vlan.h>
+// #include <linux/icmp.h>
+//#include <linux/if_vlan.h>
+//#include <pcap/vlan.h>
 //#include <uapi/linux/if_vlan.h>
+ // #include <linux/tcp.h>
+
 
 #include <iomanip>
 #include <map>
@@ -30,10 +41,12 @@
 #include <vector>
 
 #ifdef __linux__            // for Linux
+// #include <linux/tcp.h>
 #include <netinet/ether.h> 
 #include <time.h>
 #include <pcap/pcap.h>
 // #include <uapi/linux/if_vlan.h>
+#include <linux/if_ether.h>
 #endif
 
 using namespace std;
@@ -43,19 +56,22 @@ using namespace std;
 #endif
 
 #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
-
-#define _USE_BSD
-#define __FAVOR_BSD
+#define SIZE_IP_HDR (20)
+#define SIZE_IPV6_HDR (40)
 
 //TCP Flags
-# define FIN 0x01;
-# define SYN 0x02;
-# define RST 0x04;
-# define PSH 0x08;
-# define ACK 0x10;
-# define URG 0x20;
-# define ECE 0x40;
-# define CWR 0x80;
+// # define TH_FIN 0x01
+// # define TH_SYN 0x02
+// # define TH_RST 0x04
+// # define TH_PUSH        0x08
+// # define TH_ACK 0x10
+// # define TH_URG 0x20
+// # define TH_CWR 0x80
+// # define TH_ECE 0x40
+
+//#define ETH_P_8021Q  0x8100 
+//#define ETH_P_8021AD 0x88A8 
+
 
 class AggregatedPackets {
 	public:
@@ -146,29 +162,34 @@ class Packet
 		uint32_t seq_num = -1;
 		uint32_t ack_byte = -1;
 		string flags;
-		string vlan_ver = "";
+		string icmp_ver = "";
 		int vlan_type = -1;
 		int vlan_code = -1;
 		string type_description = "";
 		string code_description = "";
-		void set_values(int x, long long y, int z, string smac, string dmac, string vlanid, string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop);
-		void set_L4_layer(string l4_protocol, int s_port, int d_port, int seq_num, int ack_byte, string flgs);
-		void set_VLAN(string vlan_v, int type, int code, string type_d, string code_d);
+		void set_values(int packet_num, long long time_stamp, int length);
+		void set_L2_layer(string smac, string dmac, string vlanid);
+		void set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop);
+		void set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, uint32_t ack, string flgs);
+		void set_ICMP(string icmp_v, int type, int code, string type_d, string code_d);
 		void output();
 		void ttlOrHop();
 		void l4_output();
 };
 
-void Packet::set_values(int x,
-						long long y,
-						int z, string smac, string dmac, string vlanid, string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop){
+void Packet::set_values(int packet_num, long long time_stamp, int length) {
+	num = packet_num;
+	ts = time_stamp;
+	len = length;
+}
 
-	num = x;
-	ts = y;
-	len = z;
+void Packet::set_L2_layer(string smac, string dmac, string vlanid) {
 	src_mac = smac;
 	dst_mac = dmac;
 	vlan_id = vlanid;
+}
+
+void Packet::set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop) {
 	ipv = ip_v;
 	ip_addr_src = ip_src;
 	ip_addr_dst = ip_dst;
@@ -176,6 +197,14 @@ void Packet::set_values(int x,
 	hop_limit = hop;
 }
 
+void Packet::set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, uint32_t ack, string flgs) {
+	l4_layer = l4_id;
+	src_port = s_port;		
+	dst_port = d_port;
+	seq_num = seq;
+	ack_byte = ack;
+	flags = flgs;
+}
 
 void Packet::output() {
 	cout << this->num << ": " << this->ts << " " << this->len << " | " << "Ethernet: " << this->src_mac << " " << this->dst_mac << " " << this->vlan_id << "| " << this->ipv << ": " << this->ip_addr_src << " " << this->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
@@ -191,15 +220,6 @@ void Packet::ttlOrHop() {
 	else if (this->hop_limit != -1) {
 		cout << this->hop_limit;
 	}
-}
-
-void Packet::set_L4_layer(string l4_protocol, int s_port, int d_port, int seq, int ack, string flgs) {
-	l4_layer = l4_protocol;
-	src_port = s_port;		
-	dst_port = d_port;
-	seq_num = seq;
-	ack_byte = ack;
-	flags = flgs;
 }
 
 void Packet::l4_output() {
@@ -228,8 +248,8 @@ void Packet::l4_output() {
 		cout << this->flags;
 	}
 	
-	if (this->vlan_ver.compare("") != 0) {
-		cout << this->vlan_ver;
+	if (this->icmp_ver.compare("") != 0) {
+		cout << this->icmp_ver;
 	}
 
 	if (this->vlan_type != -1) {
@@ -254,8 +274,8 @@ void Packet::l4_output() {
 	cout << endl;
 }
 
-void Packet::set_VLAN(string vlan_v, int type, int code, string type_d, string code_d) {
-	vlan_ver = vlan_v;
+void Packet::set_ICMP(string icmp_v, int type, int code, string type_d, string code_d) {
+	icmp_ver = icmp_v;
 	vlan_type = type;
 	vlan_code = code;
 	type_description = type_d;
@@ -265,30 +285,26 @@ void Packet::set_VLAN(string vlan_v, int type, int code, string type_d, string c
 
 
 void icmp(int version, const u_char *packet, Packet *pac) {
-	// bool is_vlan as 4th param?
+
+	struct icmp* my_icmp;
+	struct icmp6_hdr* my_icmp6;
+
 	int type = -1;
 	int code = -1;
-	string vlan_ver;
+	string icmp_ver;
 	string type_description = "";
 	string code_description = "";
-	//struct icmphdr *my_vlan_icmp;
-	//my_vlan_icmp = (struct icmphdr*)(packet);
-	//for (int i = 0; i < 120 ; i++) {
-	// 	// my_vlan_icmp = (struct icmphdr*)(packet+i);
-	// 	// cout << ntohs(my_vlan_icmp->type) << " " << ntohs(my_vlan_icmp->code) << endl;
-	// 	printf("eth %d: %d \n",i, packet[i]);
-	// }
 
-	// cout << "ICMPv" << version << ": ";
 	if (version == 6) {
-		vlan_ver = "ICMPv6: ";
-		type = (int)packet[54];
-		code = (int)packet[55];
-		// cout << type << " " << code << " ";	
+
+		icmp_ver = "ICMPv6: ";
+		my_icmp6 = (struct icmp6_hdr*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR);
+		type = my_icmp6->icmp6_type;
+		code = my_icmp6->icmp6_code;
 
 		if (type == 1){
 			// cout << "destinaton unreachable ";
-			type_description = type_description + "destination unreachable ";
+			type_description = type_description + "destination unreachable";
 			switch(code) {
 				case 0:
 					// cout << "no route destination" << endl;
@@ -329,12 +345,12 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		else if (type == 2) {
 			// cout << "packet too big" << endl;
-			type_description = type_description + "packet too big ";
+			type_description = type_description + "packet too big";
 		}
 
 		else if (type == 3) {
 			// cout << "time exceeded ";
-			type_description = type_description + "time exceeded ";
+			type_description = type_description + "time exceeded";
 			if (code == 0) {
 				// cout << "hop limit exceeded in transit" << endl;
 				code_description = "hop limit exceeded in transit";
@@ -347,9 +363,8 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 		}
 
 		else if (type == 4) {
-
 			// cout << "parameter problem ";
-			type_description = type_description + "parameter problem ";
+			type_description = type_description + "parameter problem";
 			switch(code) {
 				case 0:
 					// cout << "roneous header field encountered" << endl;
@@ -370,18 +385,18 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		else if ((type == 100) || (type == 101) || (type == 200) || (type == 201)) {
 			// cout << "private experimentation ";
-			type_description = type_description + "private experimentation ";
+			type_description = type_description + "private experimentation";
 		}
 	}
 	else if (version == 4) {
-		vlan_ver = "ICMPv4: ";
-		type = (int)packet[42];
-		code = (int)packet[43];
-		// cout << type << " " << code << " ";	
+		icmp_ver = "ICMPv4: ";
+		my_icmp = (struct icmp*)(packet+SIZE_ETHERNET+SIZE_IP_HDR);
+		type = my_icmp->icmp_type;
+		code = my_icmp->icmp_code;
 
 		if (type == 0) {
 			// cout << "echo message" << endl;
-			type_description = type_description + "echo message ";
+			type_description = type_description + "echo message";
 		}
 
 		else if (type == 3) {
@@ -442,7 +457,7 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 		}
 		else if (type == 8) {
 			// cout << "echo reply message" << endl;
-			type_description = type_description + "echo reply message ";
+			type_description = type_description + "echo reply message";
 		}
 
 		else if (type == 11) {
@@ -464,56 +479,62 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 		} 
 		else if (type == 13) {
 			// cout << "timestamp message" << endl;
-			type_description = type_description + "timestamp message ";
+			type_description = type_description + "timestamp message";
 		}
 		else if (type == 14) {
 			// cout << "timestamp reply message" << endl;
-			type_description = type_description + "timestamp reply message ";
+			type_description = type_description + "timestamp reply message";
 		}
 		else if (type == 15) {
 			// cout << "information request message" << endl;
-			type_description = type_description + "information request message ";
+			type_description = type_description + "information request message";
 		} 
 		else if (type == 16) {
 			// cout <<  "information reply message" << endl;
-			type_description = type_description + "information reply message ";
+			type_description = type_description + "information reply message";
 		}		
 	}
 
-	pac->set_VLAN(vlan_ver, type, code, type_description, code_description);
+	pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
 }
 
+void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
 
-void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet *pac) {
-	//bool is_vlan as 4th param?
-	const struct tcphdr *my_tcp;
-	const struct udphdr *my_udp;
+	struct tcphdr *my_tcp;
+	struct udphdr *my_udp;
 
-	string l4_protocol;
+	struct ip* my_ip;
+	struct ip6_hdr* my_ip6;
+
+	my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
+	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
+
 	int src_port = -1;
 	int dst_port = -1;
-	uint32_t seq_num = -1;
 	uint32_t ack_byte = -1;
+	uint32_t seq_num = -1;
+	string l4_id;
 	string flags = "";
-	//VLAN????
-	// const struct tcphdr *my_vlan_tcp;
-	// const struct udphdr *my_vlan_udp;
 
-	switch (my_ip->ip_p) {
-		case 6:
-			// cout << "TCP: ";
-			l4_protocol = "TCP: ";
-			my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the TCP header
-			// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
-			src_port = ntohs(my_tcp->th_sport);
-			dst_port = ntohs(my_tcp->th_dport);
-			seq_num = my_tcp->th_seq;
-			ack_byte = my_tcp->th_ack;
+	if (ipv.compare("IPv4") == 0) {
+
+		switch (my_ip->ip_p) {
+			case 1:
+				icmp(4, packet, pac);
+				break;
+				
+			case 6:
+				l4_id = "TCP: ";
+				my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the TCP header
+				// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
+				src_port = ntohs(my_tcp->source);
+				dst_port = ntohs(my_tcp->dest);
+				seq_num = my_tcp->seq;
+				ack_byte = my_tcp->ack;
 
 				if (my_tcp->th_flags & TH_CWR){
 					// cout << "C";
 					flags = flags + "C";
-
 				}
 				else{
 					// cout << ".";
@@ -579,23 +600,120 @@ void ipv4_protocol(struct ip *my_ip, const u_char *packet, u_int size_ip, Packet
 
 				break;
 
-		case 17:
-			// cout << "UDP: ";
-			l4_protocol = "UDP: ";
-			my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-			// cout << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-			src_port = ntohs(my_udp->uh_sport);
-			dst_port = ntohs(my_udp->uh_dport);
-			break;
+				case 17:
+					// cout << "UDP: ";
+					l4_id = "UDP: ";
+					my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the UDP header
+					// cout << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+					src_port = ntohs(my_udp->uh_sport);
+					dst_port = ntohs(my_udp->uh_dport);
+					break;
 
-		default:
-			icmp(4, packet, pac);
-			break;
+				default:
+					cerr << "Unsupported L4 layer protocol" << endl;
+					exit(1);
+					break;
+			}
 	}
 
-	pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
+	else if (ipv.compare("IPv6") == 0) {
 
+		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
+	    
+		    case 17:
+	    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+SIZE_IPV6_HDR); // pointer to the UDP header
+	    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
+	    		l4_id = "UDP: ";
+	    		src_port = ntohs(my_udp->uh_sport);
+	    		dst_port = ntohs(my_udp->uh_dport);
+	    		pac->set_L4_layer(l4_id, src_port, dst_port, -1 , -1, "");
+	    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
+	    		break;
+
+	    	case 58:
+	    		icmp(6, packet, pac);
+	    		break;
+
+	    	default:
+	    		cerr << "Unsupported L4 layer protocol" << endl;
+	    		exit(1);
+	    		break;
+    	}
+	}
+
+	//void Packet::set_L4_layer(string l4_id, int s_port, int d_port, int seq, int ack, string flgs) {
+	pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+	
 }
+
+
+void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
+	// #define _USE_BSD
+	// #define __FAVOR_BSD
+	string ipv;
+	char ip_addr_src_ch[40];
+	string ip_addr_src;
+	char ip_addr_dst_ch[40];
+	string ip_addr_dst;
+	int ttl = -1;
+	int hop_limit = -1;
+
+	u_int size_ip;
+
+	const struct tcphdr *my_tcp;
+	const struct udphdr *my_udp;
+
+	struct ip *my_ip;
+	struct ip6_hdr *my_ip6;
+
+	my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
+	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
+
+	/*
+	TCP_FLAG_CWR = __constant_cpu_to_be32(0x00800000),
+    TCP_FLAG_ECE = __constant_cpu_to_be32(0x00400000),
+    TCP_FLAG_URG = __constant_cpu_to_be32(0x00200000),
+    TCP_FLAG_ACK = __constant_cpu_to_be32(0x00100000),
+    TCP_FLAG_PSH = __constant_cpu_to_be32(0x00080000),
+    TCP_FLAG_RST = __constant_cpu_to_be32(0x00040000),
+    TCP_FLAG_SYN = __constant_cpu_to_be32(0x00020000),
+    TCP_FLAG_FIN = __constant_cpu_to_be32(0x00010000),
+	*/
+
+	if (ip_v.compare("IPv4") == 0) {
+		ipv = "IPv4";
+		// size_ip = my_ip->ip_hl*4;                           // length of IP header
+
+    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
+		ip_addr_src = ip_addr_src_ch;
+
+		snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_src));
+		ip_addr_dst = ip_addr_dst_ch;
+
+		ttl = my_ip->ip_ttl;
+	}
+
+	else if (ip_v.compare("IPv6") == 0) {
+		ipv = "IPv6";
+		// size_ip = 40;
+
+		char buffer[INET6_ADDRSTRLEN];
+
+		snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
+		ip_addr_src = ip_addr_src_ch;
+
+		snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
+		ip_addr_dst = ip_addr_dst_ch;
+
+		hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+
+	}
+
+	pac->set_L3_layer(ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
+
+	l4_protocol(ipv, packet, pac);
+}
+
 
 bool sortByBytes(const Packet &p1, const Packet &p2) {
 	return p1.len > p2.len;
@@ -633,6 +751,71 @@ bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2) {
 // 	}
 // }
 
+static string vlan_id("");
+
+void next_header_type(const u_char* packet, Packet *pac, int offset) {
+
+	cout << vlan_id << endl;
+	char src_mac_ch[18];
+	string src_mac;
+	char dst_mac_ch[18];
+	string dst_mac;
+	string ipv;
+
+
+	struct ether_header *eptr;
+	eptr = (struct ether_header*)(packet+offset);
+
+	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
+	src_mac = src_mac_ch;
+	
+	snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
+	dst_mac = dst_mac_ch;
+
+	switch (ntohs(eptr->ether_type)) {
+    	case ETHERTYPE_IP:
+    		ipv = "IPv4";
+	    	l3_protocol(ipv, packet+offset, pac);
+	    	break;
+
+    	case ETHERTYPE_IPV6:
+    		ipv = "IPv6";
+			l3_protocol(ipv, packet+offset, pac);
+		    break;
+
+		case ETH_P_8021Q: 
+
+			for(int i = 0; i < 120; i++) {
+	     			printf("eth %d: %x \n",i, packet[i]);
+			}
+
+	    	vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
+	    	next_header_type(packet, pac, offset+4);
+	    	
+	    	break;
+
+	    case ETH_P_8021AD:
+	  //   	cout << "802.1ad" << endl;
+		 //    for(int i = 0; i < 120; i++) {
+	  //    			printf("eth %d: %x \n",i, packet[i]);
+			// }
+	    	
+	    	vlan_id = to_string(packet[SIZE_ETHERNET+1]) + " ";
+
+			next_header_type(packet, pac, offset+4);
+
+			break;
+
+		default:
+			cerr << "Unknown EtherType value!" << endl;
+			exit(1);
+	}
+//void Packet::set_L2_layer(string smac, string dmac, string vlanid) {
+	// cout << vlan_id_final << endl;
+	pac->set_L2_layer(src_mac, dst_mac, vlan_id);
+}
+
+
 
 int main(int argc, char **argv) {
 
@@ -651,8 +834,6 @@ int main(int argc, char **argv) {
   	// struct vlan_ethhdr *my_vlan;
   	// struct vlan_dev_priv *vlan_priv;
   	struct ethhdr* my_eth;
-
-
   	// map<int,int> my_map;
 
   	struct bpf_program fp;
@@ -691,23 +872,6 @@ int main(int argc, char **argv) {
 	//sorting variables
 
 	string aggrKey;
-
-
-	char src_mac_ch[18];
-	string src_mac;
-	char dst_mac_ch[18];
-	string dst_mac;
-	string ipv;
-	char ip_addr_src_ch[40];
-	string ip_addr_src;
-	char ip_addr_dst_ch[40];
-	string ip_addr_dst;
-	int ttl = -1;
-	int hop_limit = -1;
-	string l4_protocol;
-	int src_port = -1;
-	int dst_port = -1;
-	string vlan_id = "";
 
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
@@ -777,7 +941,7 @@ int main(int argc, char **argv) {
 			if (optarg) {
 				limit = atoi(optarg);
 				is_limited = true;
-				cout << "limit: " << limit << endl;
+				// cout << "limit: " << limit << endl;
 				if (limit < 0) {
 					cerr << "Wrong argument value [-l limit]!" << endl;
 					exit(1);
@@ -805,36 +969,12 @@ int main(int argc, char **argv) {
 		}
 
 	}
-	// if (c == -1) {
-	// 	// cout << "argc:" << argc << endl;
-	// 	// cout << "optind:" << optind << endl;
-	// 	cout << argv[optind] << endl;
-	// 	// exit(0);
-	// }
 
-	// dev = pcap_lookupdev(errbuf);
-	// if (dev == NULL) {
-	// 		fprintf(stderr, "Couldn't find default device: %s\n",errbuf);
-	// 		exit(EXIT_FAILURE);
-	// }
-
-
-	// int numOfArgs = argc - 1;
 	while (argc > optind) {
-		// if (strcmp(argv[numOfArgs], "file") == 0) {
-			// input_files = true;
-			// while (numOfArgs < argc-1) {
+
 
 		if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL)
 			err(1,"Can't open file %s for reading", argv[optind]);
-
-		// printf("Opening file %s for reading ...\n\n", argv[optind]);
-
-  		// 		if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
-				// 	fprintf(stderr, "Couldn't get netmask for device %s: %s\n",dev, errbuf);
-				// 	netaddr = 0;
-				// 	mask = 0;
-				// }
 
 		if (strcmp(filter_expr, "") != 0) {
 			if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
@@ -844,11 +984,9 @@ int main(int argc, char **argv) {
 				err(1,"pcap_setfilter() failed");
 		}
 
-  				// read packets from the file
 		while ((packet = pcap_next(handle,&header)) != NULL){
 
 			Packet pac;
-
 			n++;
 			p++;
 
@@ -858,276 +996,13 @@ int main(int argc, char **argv) {
 
 			long long ts = 100000 * header.ts.tv_sec + header.ts.tv_usec;
 
-				    //my_ip6_2 = (struct ip6_hdr*) (packet+SIZE_ETHERNET+20);
-			eptr = (struct ether_header *) packet;
-
-			my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
-
-			my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
-
-				    // my_icmp = (struct icmphdr*)(packet+SIZE_ETHERNET);
-
-				    // my_vlan = (struct vlan_ethhdr*)(packet + SIZE_ETHERNET);
-
-				    // vlan_priv = (struct vlan_dev_priv*)(packet + SIZE_ETHERNET); 
-
-
-				    //DID:
-				    //total size of packet IPv4, IPv6 ------ SOLVED!!!
-				    //VLAN - 802.1q, 802.1ad ------ SOLVED!!!
-				    //flags (CWR, ECE) by TCP, unknown offsets for flags ------ SOLVED!!!
-				    //limit issue ------ SOLVED!!!
-				   	//ICMPv4, ICMPv6 - type and code ??? ----- PARTIAL SOLVED ???!!!
-				   	//MAC Address first 0 ------ SOLVED!!!
-				   	//filter expr ------ SOLVED!!!
-					//VLAN IPv4 size_ip ----- SOLVED!!!
-					//TODO
-					//sort ----- SOLVED!!!
-				   	//agregation ----- SOLVED!!!
-				   	//fragmentation
-
-		    switch (ntohs(eptr->ether_type)) {
-		    	case ETHERTYPE_IP:
-
-			    	size_ip = my_ip->ip_hl*4;
-
-					snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-					src_mac = src_mac_ch;
+			next_header_type(packet, &pac, 0);
 			    	
-					//char dst_mac_ch[18];
-					snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-					dst_mac = dst_mac_ch;
-
-			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-		    		// cout << " ";
-			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-			    	// cout << " | ";
-			    	// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " | ";
-			    	ipv = "IPv4";
-
-			    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
-					ip_addr_src = ip_addr_src_ch;
-
-					snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_src));
-					ip_addr_dst = ip_addr_dst_ch;
-
-					ttl = my_ip->ip_ttl;
-			    	// cout << "IPv4: " << inet_ntoa(my_ip->ip_src) << " " << inet_ntoa(my_ip->ip_dst) << " " << to_string(my_ip->ip_ttl) << " | ";
-
-			    	
-
-			    	ipv4_protocol(my_ip, packet, size_ip, &pac);
-
-			    	break;
-
-
-		    	case ETHERTYPE_IPV6:
-			    	size_ip = 40;
-
-			    	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-					src_mac = src_mac_ch;
-			    	
-					//char dst_mac_ch[18];
-					snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-					dst_mac = dst_mac_ch;
-
-			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-		    		// cout << " ";
-			    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-			    	// cout << " | ";
-
-			    	char buffer[INET6_ADDRSTRLEN];
-
-					ipv = "IPv6";
-
-					snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
-					ip_addr_src = ip_addr_src_ch;
-
-					snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
-					ip_addr_dst = ip_addr_dst_ch;
-
-					hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
-			    	// cout << "IPv6: " << inet_ntop(AF_INET6, &(my_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
-
-			    	switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
-			    		case 17:
-				    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+size_ip); // pointer to the UDP header
-				    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-				    		l4_protocol = "UDP: ";
-				    		src_port = ntohs(my_udp->uh_sport);
-				    		dst_port = ntohs(my_udp->uh_dport);
-				    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
-				    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
-				    		break;
-
-
-
-				    	default:
-		    			//extend IPv6 TCP: port value at index 79
-		    			// printf("tcp: %d \n", packet[79]);
-					  	icmp(6, packet, &pac);
-				    		break;
-				    }
-				    break;
-
-			    default:
-		   //   		for(int i = 0; i < 120; i++) {
-		   //  			printf("eth %d: %d \n",i, packet[i]);
-					// 	//cout << HEX(packet[i]) << endl;
-					// }
-			    	my_vlan_ip = (struct ip*)(packet+22);
-			    	size_ip = my_vlan_ip->ip_hl*4;
-			    	my_vlan_ip6 = (struct ip6_hdr*)(packet+18);
-
-			    	if ((packet[12] == 0x81) && (packet[13] == 0x00)) {
-						vlan1q = true;//802.1q
-						// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-						// cout << "Ethernet: ";
-
-						snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-						src_mac = src_mac_ch;
-			    	
-					//char dst_mac_ch[18];
-						snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-						dst_mac = dst_mac_ch;
-
-				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-			    		// cout << " ";
-				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-				    	// cout << " | ";
-
-				    	vlan_id = to_string(packet[15]) + " ";
-						 //<< " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
-						// cout << "old:" << endl;
-						// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " | ";
-
-					}
-					else if ((packet[12] == 0x88) && (packet[13] == 0xa8) && (packet[16] == 0x81) && (packet[17] == 0x00)) {
-						vlan1ad = true;//802.1ad
-						// cout << to_string(p) + ": " + to_string(ts) + " " << setprecision(2) << header.len << " | ";
-						// cout << "Ethernet: ";
-
-						snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-						src_mac = src_mac_ch;
-			    	
-					//char dst_mac_ch[18];
-						snprintf(dst_mac_ch, sizeof(dst_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-						dst_mac = dst_mac_ch;
-
-				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
-			    		// cout << " ";
-				    	// printf("%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_dhost[0], eptr->ether_dhost[1], eptr->ether_dhost[2], eptr->ether_dhost[3], eptr->ether_dhost[4], eptr->ether_dhost[5]);
-				    	// cout << " | ";
-						// cout << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_shost) << " " << setfill('0') << setw(17) << ether_ntoa((const struct ether_addr *)&eptr->ether_dhost) << " " <<  to_string(packet[15]) << " " << to_string(packet[19]) << " | ";
-						vlan_id = to_string(packet[15]) + " ";
-						vlan_id = vlan_id + to_string(packet[19]) + " ";
-
-					}
-					else {
-						cerr << "Unknown EtherType value!" << endl;
-						exit(1);
-					}
-
-					if (vlan1q) {
-						if ((packet[16] == 0x86) && (packet[17] == 0xdd)) {
-							// cout << "IPv6: ";
-							ipv = "IPv6";
-
-							snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
-							ip_addr_src = ip_addr_src_ch;
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
-							ip_addr_dst = ip_addr_dst_ch;
-
-							hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
-							// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";
-
-							if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
-					    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
-					    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
-					    		l4_protocol = "UDP: ";
-					    		src_port = ntohs(my_udp->uh_sport);
-					    		dst_port = ntohs(my_udp->uh_dport);
-					    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");	
-					    	}
-					    	else {
-					    		icmp(6, packet, &pac);
-					    	}
-
-					    }
-					    else if ((packet[16] == 0x08) && (packet[17] == 0x00)){
-					    	// cout << "IPv4: ";
-					    	ipv = "IPv4";
-					    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
-							ip_addr_src = ip_addr_src_ch;
-
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
-							ip_addr_dst = ip_addr_dst_ch;
-
-							ttl = my_vlan_ip->ip_ttl;
-
-					    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
-					    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
-					    }
-					}
-					else if (vlan1ad) {
-						if ((packet[20] == 0x86) && (packet[21] == 0xdd)){
-							// cout << "IPv6: ";
-							ipv = "IPv6";
-
-
-							snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN));
-							ip_addr_src = ip_addr_src_ch;
-
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN));
-							ip_addr_dst = ip_addr_dst_ch;
-
-							hop_limit = my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
-							// cout << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_src), buffer, INET6_ADDRSTRLEN) << " " << inet_ntop(AF_INET6, &(my_vlan_ip6->ip6_dst), buffer, INET6_ADDRSTRLEN) << " " << to_string(my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim)  << " | ";				    				
-							if (my_vlan_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt == 17){
-					    		my_udp = (struct udphdr *)(packet+58); // pointer to the UDP header
-					    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;	
-					    		l4_protocol = "UDP: ";
-					    		src_port = ntohs(my_udp->uh_sport);
-					    		dst_port = ntohs(my_udp->uh_dport);
-					    		pac.set_L4_layer(l4_protocol, src_port, dst_port, -1 , -1, "");
-					    	}
-					    	else {
-					    		icmp(6, packet, &pac);
-					    	}
-					    } 
-					    else if ((packet[20] == 0x08) && (packet[21] == 0x00)) {
-					    	// cout << "IPv4: ";
-					    	ipv = "IPv4";
-
-					    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_vlan_ip->ip_src));
-							ip_addr_src = ip_addr_src_ch;
-
-							snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_vlan_ip->ip_dst));
-							ip_addr_dst = ip_addr_dst_ch;
-
-							ttl = my_vlan_ip->ip_ttl;
-
-					    	// cout << inet_ntoa(my_vlan_ip->ip_src) << " " << inet_ntoa(my_vlan_ip->ip_dst) << " " << to_string(my_vlan_ip->ip_ttl) << " | ";
-					    	ipv4_protocol(my_vlan_ip, packet, size_ip, &pac);
-					    }
-					}
-					break;
-			}
-				// cout << endl;
-				// cout << "TTL " << ttl << endl;
-				// cout << "HOP " << hop_limit << endl;
-				// pac.output();
-				// src_mac = sprintf(src_mac_ch, "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5])
-			pac.set_values(p, ts, header.len, src_mac, dst_mac, vlan_id, ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
+			pac.set_values(p, ts, header.len);
 			packets.push_back(pac);
 
 		}
 
-		// printf("End of file reached ...\n");
-	// close the capture device and deallocate resources
 		pcap_close(handle);
 		optind++;
 	}
