@@ -304,11 +304,11 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		if (type == 1){
 			// cout << "destinaton unreachable ";
-			type_description = type_description + "destination unreachable";
+			type_description = "destination unreachable";
 			switch(code) {
 				case 0:
 					// cout << "no route destination" << endl;
-					code_description = "no route destination";
+					code_description = "no route to destination";
 					break;
 
 				case 1:
@@ -340,17 +340,21 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 					// cout << "reject route to destination" << endl;
 					code_description = "reject route to destination";
 					break;
+
+				case 7:
+					code_description = "error in source routing header";
+					break;
 			}
 		}
 
 		else if (type == 2) {
 			// cout << "packet too big" << endl;
-			type_description = type_description + "packet too big";
+			type_description = "packet too big";
 		}
 
 		else if (type == 3) {
 			// cout << "time exceeded ";
-			type_description = type_description + "time exceeded";
+			type_description = "time exceeded";
 			if (code == 0) {
 				// cout << "hop limit exceeded in transit" << endl;
 				code_description = "hop limit exceeded in transit";
@@ -364,11 +368,11 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		else if (type == 4) {
 			// cout << "parameter problem ";
-			type_description = type_description + "parameter problem";
+			type_description = "parameter problem";
 			switch(code) {
 				case 0:
 					// cout << "roneous header field encountered" << endl;
-					code_description = "roneous header field encountered";
+					code_description = "erroneous header field encountered";
 					break;
 
 				case 1:
@@ -385,7 +389,7 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		else if ((type == 100) || (type == 101) || (type == 200) || (type == 201)) {
 			// cout << "private experimentation ";
-			type_description = type_description + "private experimentation";
+			type_description = "private experimentation";
 		}
 	}
 	else if (version == 4) {
@@ -396,7 +400,7 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 
 		if (type == 0) {
 			// cout << "echo message" << endl;
-			type_description = type_description + "echo message";
+			type_description = "echo reply message";
 		}
 
 		else if (type == 3) {
@@ -430,6 +434,46 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 					// cout << "source route failed" << endl;
 					code_description = "source route failed";
 					break;
+
+				case 6:
+					code_description = "destination network unknown";
+					break;
+
+				case 7:
+					code_description = "destination host unknown";
+					break;
+
+				case 8:
+					code_description = "source host isolated";
+					break;
+
+				case 9:
+					code_description = "network administratively prohibited";
+					break;
+
+				case 10:
+					code_description = "host administratively prohibited";
+					break;
+
+				case 11:
+					code_description = "network unreachable for Type of Service";
+					break;
+
+				case 12:
+					code_description = "host unreachable for Type of Service";
+					break;
+
+				case 13:
+					code_description = "communication administratively prohibited";
+					break;
+
+				case 14:
+					code_description = "host precedence violation";
+					break;
+
+				case 15:
+					code_description = "precedence cutoff in effect";
+					break;
 			}
 		}
 		else if (type == 5) {
@@ -457,7 +501,15 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 		}
 		else if (type == 8) {
 			// cout << "echo reply message" << endl;
-			type_description = type_description + "echo reply message";
+			type_description = "echo message";
+		}
+
+		else if (type == 9) {
+			type_description = "router advertisment";
+		}
+
+		else if (type == 10) {
+			type_description = "router solicitation";
 		}
 
 		else if (type == 11) {
@@ -476,23 +528,38 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 				// cout << "pointer indicates error" << endl;
 				code_description = "pointer indicates error";
 			}
+
+			else if (code == 1) {
+				code_description = "missing a required option";
+			}
+
+			else if (code == 2) {
+				code_description = "bad length";
+			}
 		} 
 		else if (type == 13) {
 			// cout << "timestamp message" << endl;
-			type_description = type_description + "timestamp message";
+			type_description = "timestamp message";
 		}
 		else if (type == 14) {
 			// cout << "timestamp reply message" << endl;
-			type_description = type_description + "timestamp reply message";
+			type_description = "timestamp reply message";
 		}
 		else if (type == 15) {
 			// cout << "information request message" << endl;
-			type_description = type_description + "information request message";
+			type_description = "information request message";
 		} 
 		else if (type == 16) {
 			// cout <<  "information reply message" << endl;
-			type_description = type_description + "information reply message";
+			type_description = "information reply message";
 		}		
+		else if (type == 17) {
+			type_description = "address mask request";
+		}
+
+		else if (type == 18) {
+			type_description = "addres mask reply";
+		}
 	}
 
 	pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
