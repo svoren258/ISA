@@ -84,8 +84,9 @@ class AggregatedPackets {
 
 void AggregatedPackets::print_aggr() {
 	if (this->aggrkey.compare("-1") == 0) {
-		cerr << "Aggregation fault." << endl;
-		exit(1);
+		return;
+		// cerr << "Aggregation fault." << endl;
+		// exit(1);
 	}
 	cout << this->aggrkey << ": " << this->num << " " << this->size << endl;
 }
@@ -565,7 +566,45 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 	pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
 }
 
-void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
+// static int total_offset = 0;
+// static bool extended_hdr = false;
+
+void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset, bool extended_hdr);
+
+void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
+
+	struct ip6_ext *my_ip6_ext;
+	int total_offset = 0;
+	int x = 0;
+	bool extended_hdr = false;
+	// struct ip6_hdr *my_ip6;
+	my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR);
+	// printf("next: %x\n",  my_ip6_ext->ip6e_nxt);
+	// printf("len: %x\n",  my_ip6_ext->ip6e_len);
+	while (x < pac->len) {
+		// cout << "total offset: " << total_offset << endl;
+		if ((my_ip6_ext->ip6e_nxt == 6) || (my_ip6_ext->ip6e_nxt == 17) || (my_ip6_ext->ip6e_nxt == 58)) {
+			// printf("my_ip6_ext: %x\n", my_ip6_ext->ip6e_nxt);
+			// printf("my_ip6_hdr: %x\n", my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt);
+			extended_hdr = true;
+			l4_protocol("IPv6", packet, pac, total_offset+34, extended_hdr);
+			//pac->output();
+			break;
+		} 
+		else {
+			total_offset += 8*(1+(int)my_ip6_ext->ip6e_len);
+			my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR+total_offset);
+			// my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET+34+total_offset);	
+		}
+	}	
+	
+	if (!extended_hdr) {
+		cerr << "Unsupported L4 layer protocol" << endl;
+		exit(1);	
+	}
+}
+
+void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, bool extended_hdr = false) {
 
 	struct tcphdr *my_tcp;
 	struct udphdr *my_udp;
@@ -573,8 +612,14 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
 	struct ip* my_ip;
 	struct ip6_hdr* my_ip6;
 
+	struct ip6_opt* my_ip6_opt;
+	struct ip6_hbh* my_ip6_hbh;
+	struct ip6_dest* my_ip6_dest;
+	struct ip6_ext* my_ip6_ext;
+	struct ip6_rthdr* my_ip6_rthdr;
+
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
-	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
+	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET+offset);
 
 	int src_port = -1;
 	int dst_port = -1;
@@ -582,6 +627,8 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
 	uint32_t seq_num = -1;
 	string l4_id;
 	string flags = "";
+
+	// cout << ipv << endl;
 
 	if (ipv.compare("IPv4") == 0) {
 
@@ -685,16 +732,171 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
 
 	else if (ipv.compare("IPv6") == 0) {
 
+		// cout << "offset: " << offset << endl;
+		// struct ip6_opt_tunnel* my_ip6_tunnel;
+		// my_ip6_tunnel = (struct ip6_opt_tunnel*)(packet+SIZE_ETHERNET);
+		// cout << "encap limit: " << my_ip6_tunnel->ip6ot_encap_limit << endl;
+		// printf("next hdr my ipv6: %x\n", int(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt));
+		// my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+34);
+		// printf("len: %x\n", int(my_ip6_ext->ip6e_len));
+		// exit(1);
+		uint8_t next_hdr = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
 		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
+			// case 0:
+			// 	// cout << "hop option" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+
+			// 	//cout << "offset " << offset << endl;
+			// 	// my_ip6_hbh = (struct ip6_hbh*)(packet+SIZE_ETHERNET+offset);
+			// 	// my_ip6_dest = (struct ip6_dest*)(packet+SIZE_ETHERNET+offset);
+			// 	// printf("next: %d, len: %d \n", int(my_ip6_dest->ip6d_nxt), int(my_ip6_dest->ip6d_len));
+			// 	// total_offset += (my_ip6_hbh->ip6h_len+1)*8;
+			// 	// l4_protocol("IPv6", packet, pac, total_offset);
+			// 	break;
+
+			// // case 41:
+			// // 	cout << "IPv6 encapsulation" << endl;
+			// // 	break;
+
+			// case 43:
+			// 	// cout << "routing header for IPv6" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+			// 	// my_ip6_rthdr = (struct ip6_rthdr*)(packet+SIZE_ETHERNET+offset);
+			// 	// printf("next hdr: %x, len: %x\n", my_ip6_rthdr->ip6r_nxt, my_ip6_rthdr->ip6r_len);
+			// 	// total_offset += 2*my_ip6_rthdr->ip6r_len;
+			// 	// l4_protocol("IPv6", packet, pac, total_offset);
+			// 	break;
+
+			// case 44:
+			// 	cout << "fragment header for IPv6" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+			// 	break;
+
+			// case 50:
+			// 	cout << "encapsulating security payload" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+			// 	break;
+
+			// case 51:
+			// 	cout << "authentication header" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+			// 	break;
+			
+			// case 60:
+			// 	cout << "destination options for IPv6" << endl;
+			// 	extended_hdr = true;
+			// 	extended_IPv6_header(next, packet, pac, offset);
+			// 	// total_offset += 34;
+				
+			// 	// l4_protocol("IPv6", packet, pac, total_offset);
+			// 	break; 
+
+			case 6:
+				// cout << "tcp" << endl;
+				// cout << "offset: " << offset << endl;
+				l4_id = "TCP: ";
+				if (extended_hdr) {
+					my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+offset+14); // pointer to the TCP header
+				}
+				else {
+					my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IPV6_HDR); // pointer to the TCP header
+				}
+				// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
+				src_port = ntohs(my_tcp->source);
+				dst_port = ntohs(my_tcp->dest);
+				seq_num = my_tcp->seq;
+				ack_byte = my_tcp->ack;
+
+				if (my_tcp->th_flags & TH_CWR){
+					// cout << "C";
+					flags = flags + "C";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_ECE){
+					// cout << "E";
+					flags = flags + "E";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_URG){
+					// cout << "U";
+					flags = flags + "U";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_ACK){
+					// cout << "A";	
+					flags = flags + "A";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_PUSH){
+					// cout << "P";
+					flags = flags + "P";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_RST){
+					// cout << "R";
+					flags = flags + "R";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_SYN){
+					// cout << "S";
+					flags = flags + "S";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				if (my_tcp->th_flags & TH_FIN){
+					// cout << "F";
+					flags = flags + "F";
+				}
+				else{
+					// cout << ".";
+					flags = flags + ".";
+				}
+				// cout << endl;
+				if (extended_hdr) {
+					pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+				}
+				break;
 	    
 		    case 17:
-	    		my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+SIZE_IPV6_HDR); // pointer to the UDP header
+		    	if (extended_hdr) {
+					my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+offset+14); // pointer to the TCP header
+				}
+				else {
+	    			my_udp = (struct udphdr *)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR); // pointer to the UDP header	
+				}
 	    		// cout << "UDP: " << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
 	    		l4_id = "UDP: ";
 	    		src_port = ntohs(my_udp->uh_sport);
 	    		dst_port = ntohs(my_udp->uh_dport);
-	    		pac->set_L4_layer(l4_id, src_port, dst_port, -1 , -1, "");
 	    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
+	    		if (extended_hdr) {
+					pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+				}
 	    		break;
 
 	    	case 58:
@@ -702,17 +904,18 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac) {
 	    		break;
 
 	    	default:
-	    		cerr << "Unsupported L4 layer protocol" << endl;
-	    		exit(1);
+	    		extended_IPv6_header(next_hdr, packet, pac);
+	    		//pac->output();
 	    		break;
     	}
 	}
 
-	//void Packet::set_L4_layer(string l4_id, int s_port, int d_port, int seq, int ack, string flgs) {
-	pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+	//pac->output();
+	if ((!extended_hdr) && (src_port != -1)) {
+		pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+	}
 	
 }
-
 
 void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
 	// #define _USE_BSD
@@ -773,7 +976,6 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
 		ip_addr_dst = ip_addr_dst_ch;
 
 		hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-
 	}
 
 	pac->set_L3_layer(ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
@@ -822,13 +1024,12 @@ static string vlan_id("");
 
 void next_header_type(const u_char* packet, Packet *pac, int offset) {
 
-	cout << vlan_id << endl;
+	// cout << vlan_id << endl;
 	char src_mac_ch[18];
 	string src_mac;
 	char dst_mac_ch[18];
 	string dst_mac;
 	string ipv;
-
 
 	struct ether_header *eptr;
 	eptr = (struct ether_header*)(packet+offset);
@@ -852,9 +1053,9 @@ void next_header_type(const u_char* packet, Packet *pac, int offset) {
 
 		case ETH_P_8021Q: 
 
-			for(int i = 0; i < 120; i++) {
-	     			printf("eth %d: %x \n",i, packet[i]);
-			}
+			// for(int i = 0; i < 120; i++) {
+	  //    			printf("eth %d: %d \n",i, packet[i]);
+			// }
 
 	    	vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
 	    	next_header_type(packet, pac, offset+4);
@@ -876,6 +1077,7 @@ void next_header_type(const u_char* packet, Packet *pac, int offset) {
 		default:
 			cerr << "Unknown EtherType value!" << endl;
 			exit(1);
+			break;
 	}
 //void Packet::set_L2_layer(string smac, string dmac, string vlanid) {
 	// cout << vlan_id_final << endl;
@@ -1063,9 +1265,10 @@ int main(int argc, char **argv) {
 
 			long long ts = 100000 * header.ts.tv_sec + header.ts.tv_usec;
 
+			pac.set_values(p, ts, header.len);
+
 			next_header_type(packet, &pac, 0);
 			    	
-			pac.set_values(p, ts, header.len);
 			packets.push_back(pac);
 
 		}
