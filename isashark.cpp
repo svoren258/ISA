@@ -37,6 +37,7 @@
 
 #include <iomanip>
 #include <map>
+#include <iterator>
 #include <algorithm>
 #include <vector>
 
@@ -283,9 +284,7 @@ void Packet::set_ICMP(string icmp_v, int type, int code, string type_d, string c
 	code_description = code_d; 
 }
 
-
-
-void icmp(int version, const u_char *packet, Packet *pac) {
+void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 
 	struct icmp* my_icmp;
 	struct icmp6_hdr* my_icmp6;
@@ -299,7 +298,7 @@ void icmp(int version, const u_char *packet, Packet *pac) {
 	if (version == 6) {
 
 		icmp_ver = "ICMPv6: ";
-		my_icmp6 = (struct icmp6_hdr*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR);
+		my_icmp6 = (struct icmp6_hdr*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR+offset);
 		type = my_icmp6->icmp6_type;
 		code = my_icmp6->icmp6_code;
 
@@ -575,13 +574,13 @@ void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
 
 	struct ip6_ext *my_ip6_ext;
 	int total_offset = 0;
-	int x = 0;
+	//int x = 0;
 	bool extended_hdr = false;
 	// struct ip6_hdr *my_ip6;
 	my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR);
 	// printf("next: %x\n",  my_ip6_ext->ip6e_nxt);
 	// printf("len: %x\n",  my_ip6_ext->ip6e_len);
-	while (x < pac->len) {
+	while (total_offset < pac->len) {
 		// cout << "total offset: " << total_offset << endl;
 		if ((my_ip6_ext->ip6e_nxt == 6) || (my_ip6_ext->ip6e_nxt == 17) || (my_ip6_ext->ip6e_nxt == 58)) {
 			// printf("my_ip6_ext: %x\n", my_ip6_ext->ip6e_nxt);
@@ -596,6 +595,7 @@ void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
 			my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR+total_offset);
 			// my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET+34+total_offset);	
 		}
+		//x += total_offset;
 	}	
 	
 	if (!extended_hdr) {
@@ -731,71 +731,8 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 	}
 
 	else if (ipv.compare("IPv6") == 0) {
-
-		// cout << "offset: " << offset << endl;
-		// struct ip6_opt_tunnel* my_ip6_tunnel;
-		// my_ip6_tunnel = (struct ip6_opt_tunnel*)(packet+SIZE_ETHERNET);
-		// cout << "encap limit: " << my_ip6_tunnel->ip6ot_encap_limit << endl;
-		// printf("next hdr my ipv6: %x\n", int(my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt));
-		// my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+34);
-		// printf("len: %x\n", int(my_ip6_ext->ip6e_len));
-		// exit(1);
 		uint8_t next_hdr = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt){
-			// case 0:
-			// 	// cout << "hop option" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-
-			// 	//cout << "offset " << offset << endl;
-			// 	// my_ip6_hbh = (struct ip6_hbh*)(packet+SIZE_ETHERNET+offset);
-			// 	// my_ip6_dest = (struct ip6_dest*)(packet+SIZE_ETHERNET+offset);
-			// 	// printf("next: %d, len: %d \n", int(my_ip6_dest->ip6d_nxt), int(my_ip6_dest->ip6d_len));
-			// 	// total_offset += (my_ip6_hbh->ip6h_len+1)*8;
-			// 	// l4_protocol("IPv6", packet, pac, total_offset);
-			// 	break;
-
-			// // case 41:
-			// // 	cout << "IPv6 encapsulation" << endl;
-			// // 	break;
-
-			// case 43:
-			// 	// cout << "routing header for IPv6" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-			// 	// my_ip6_rthdr = (struct ip6_rthdr*)(packet+SIZE_ETHERNET+offset);
-			// 	// printf("next hdr: %x, len: %x\n", my_ip6_rthdr->ip6r_nxt, my_ip6_rthdr->ip6r_len);
-			// 	// total_offset += 2*my_ip6_rthdr->ip6r_len;
-			// 	// l4_protocol("IPv6", packet, pac, total_offset);
-			// 	break;
-
-			// case 44:
-			// 	cout << "fragment header for IPv6" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-			// 	break;
-
-			// case 50:
-			// 	cout << "encapsulating security payload" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-			// 	break;
-
-			// case 51:
-			// 	cout << "authentication header" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-			// 	break;
-			
-			// case 60:
-			// 	cout << "destination options for IPv6" << endl;
-			// 	extended_hdr = true;
-			// 	extended_IPv6_header(next, packet, pac, offset);
-			// 	// total_offset += 34;
-				
-			// 	// l4_protocol("IPv6", packet, pac, total_offset);
-			// 	break; 
-
+		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt) {
 			case 6:
 				// cout << "tcp" << endl;
 				// cout << "offset: " << offset << endl;
@@ -900,7 +837,12 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 	    		break;
 
 	    	case 58:
-	    		icmp(6, packet, pac);
+	    		if (extended_hdr) {
+	    			icmp(6, packet, pac, offset+14);
+	    		}
+	    		else {
+	    			icmp(6, packet, pac);
+	    		}
 	    		break;
 
 	    	default:
@@ -917,7 +859,56 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 	
 }
 
-void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
+ class FragmentedPacket
+ {
+	 public:
+	 	unsigned short id;
+	 	string src_ip;
+	 	string dst_ip;
+	 	uint8_t protocol;
+	 	map<string,int> hole_descriptors;
+	 	void create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl);
+ };
+
+ void FragmentedPacket::create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl) {
+ 	id = id_field;
+ 	src_ip = srcip;
+ 	dst_ip = dstip;
+ 	protocol = prtcl;
+ 	hole_descriptors.insert(make_pair("hole.first",0));
+ 	hole_descriptors.insert(make_pair("hole.last",577));
+ }
+
+void fragmentation_reassembly(unsigned short ip_id, string ip_src, string ip_dst, uint8_t ip_p, vector<FragmentedPacket> *frag_packets) {
+	
+	bool exists = false;
+
+	if(frag_packets->empty()) {
+		// cout << "empty" << endl;
+		FragmentedPacket FPac;
+		FPac.create_fragmented_packet(ip_id, ip_src, ip_dst, ip_p);
+		//FPac.hole_descriptors
+		frag_packets->push_back(FPac);
+
+	}
+	else {
+		for (vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
+			if ((it->id == ip_id) && (it->src_ip.compare(ip_src) == 0) && (it->dst_ip.compare(ip_dst) == 0) && (it->protocol == ip_p)) {
+				// for(vector<int>::iterator i = it->hole_descriptors.begin(); i != it->hole_descriptors.end(); ++i) {
+
+				// }
+				exists = true;
+			}
+		}
+		if (!exists){
+			FragmentedPacket FPac;
+			FPac.create_fragmented_packet(ip_id, ip_src, ip_dst, ip_p);
+			frag_packets->push_back(FPac);	
+		}
+	}
+}
+
+void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<FragmentedPacket> *frag_packets = 0) {
 	// #define _USE_BSD
 	// #define __FAVOR_BSD
 	string ipv;
@@ -936,7 +927,9 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
 	struct ip *my_ip;
 	struct ip6_hdr *my_ip6;
 
-	my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
+	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
+	bool flag_mf = (my_ip->ip_off & IP_MF) != 0;
+
 	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
 
 	/*
@@ -951,20 +944,52 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
 	*/
 
 	if (ip_v.compare("IPv4") == 0) {
-		ipv = "IPv4";
+		//ipv = "IPv4";
 		// size_ip = my_ip->ip_hl*4;                           // length of IP header
 
-    	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
+		// printf("total len: %d\n", my_ip->ip_len);
+		// printf("identification: %d\n", my_ip->ip_id);
+		// printf("offset: %d\n", my_ip->ip_off);
+		// printf("srcip: %s\n", inet_ntoa(my_ip->ip_src));
+		// printf("ip_prot: %d\n", my_ip->ip_p);
+		// // printf("offmask: %d\n", (my_ip->ip_off & IP_OFFMASK));
+		// // printf("MF: %d\n", (my_ip->ip_off & IP_MF));
+		// if(flag_mf) {
+		// 	cout << "1" << endl;
+		// }
+		// else {
+		// 	cout << "0" << endl;
+		// }
+
+		//printf("flag mf: %d\n", flag_mf);
+
+
+		snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
 		ip_addr_src = ip_addr_src_ch;
 
-		snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_src));
+		snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_dst));
 		ip_addr_dst = ip_addr_dst_ch;
 
 		ttl = my_ip->ip_ttl;
+		
+		if ((flag_mf) || (my_ip->ip_off != 0)) {
+			fragmentation_reassembly(my_ip->ip_id, ip_addr_src, ip_addr_dst, my_ip->ip_p, frag_packets);
+		}
+		// else {
+		// 	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
+		// 	ip_addr_src = ip_addr_src_ch;
+
+		// 	snprintf(ip_addr_dst_ch, sizeof(ip_addr_dst_ch), "%s", inet_ntoa(my_ip->ip_dst));
+		// 	ip_addr_dst = ip_addr_dst_ch;
+
+		// 	ttl = my_ip->ip_ttl;
+		// }
+
+    
 	}
 
 	else if (ip_v.compare("IPv6") == 0) {
-		ipv = "IPv6";
+		//ipv = "IPv6";
 		// size_ip = 40;
 
 		char buffer[INET6_ADDRSTRLEN];
@@ -978,9 +1003,9 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac) {
 		hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
 	}
 
-	pac->set_L3_layer(ipv, ip_addr_src, ip_addr_dst, ttl, hop_limit);
+	pac->set_L3_layer(ip_v, ip_addr_src, ip_addr_dst, ttl, hop_limit);
 
-	l4_protocol(ipv, packet, pac);
+	l4_protocol(ip_v, packet, pac);
 }
 
 
@@ -1022,7 +1047,7 @@ bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2) {
 
 static string vlan_id("");
 
-void next_header_type(const u_char* packet, Packet *pac, int offset) {
+void next_header_type(const u_char* packet, Packet *pac, int offset, vector<FragmentedPacket> *frag_packets) {
 
 	// cout << vlan_id << endl;
 	char src_mac_ch[18];
@@ -1030,6 +1055,10 @@ void next_header_type(const u_char* packet, Packet *pac, int offset) {
 	char dst_mac_ch[18];
 	string dst_mac;
 	string ipv;
+
+	// for(int i = 0; i < pac->len; i++) {
+	// 	printf("offset[%d]: %x\n", i, packet[i]);
+	// }
 
 	struct ether_header *eptr;
 	eptr = (struct ether_header*)(packet+offset);
@@ -1043,7 +1072,7 @@ void next_header_type(const u_char* packet, Packet *pac, int offset) {
 	switch (ntohs(eptr->ether_type)) {
     	case ETHERTYPE_IP:
     		ipv = "IPv4";
-	    	l3_protocol(ipv, packet+offset, pac);
+	    	l3_protocol(ipv, packet+offset, pac, frag_packets);
 	    	break;
 
     	case ETHERTYPE_IPV6:
@@ -1052,26 +1081,20 @@ void next_header_type(const u_char* packet, Packet *pac, int offset) {
 		    break;
 
 		case ETH_P_8021Q: 
-
 			// for(int i = 0; i < 120; i++) {
 	  //    			printf("eth %d: %d \n",i, packet[i]);
 			// }
-
 	    	vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
-	    	next_header_type(packet, pac, offset+4);
-	    	
+	    	next_header_type(packet, pac, offset+4, frag_packets);
 	    	break;
 
 	    case ETH_P_8021AD:
 	  //   	cout << "802.1ad" << endl;
 		 //    for(int i = 0; i < 120; i++) {
 	  //    			printf("eth %d: %x \n",i, packet[i]);
-			// }
-	    	
+			// }	
 	    	vlan_id = to_string(packet[SIZE_ETHERNET+1]) + " ";
-
-			next_header_type(packet, pac, offset+4);
-
+			next_header_type(packet, pac, offset+4, frag_packets);
 			break;
 
 		default:
@@ -1138,6 +1161,7 @@ int main(int argc, char **argv) {
 
 	vector<Packet> packets;
 	vector<AggregatedPackets> aggr_packets;
+	vector<FragmentedPacket> frag_packets;
 	//sorting variables
 
 	string aggrKey;
@@ -1208,7 +1232,9 @@ int main(int argc, char **argv) {
 
 			case 'l':
 			if (optarg) {
+				//cout << optarg << endl;
 				limit = atoi(optarg);
+				//cout << limit << endl;
 				is_limited = true;
 				// cout << "limit: " << limit << endl;
 				if (limit < 0) {
@@ -1267,7 +1293,8 @@ int main(int argc, char **argv) {
 
 			pac.set_values(p, ts, header.len);
 
-			next_header_type(packet, &pac, 0);
+			// cout << p << endl;
+			next_header_type(packet, &pac, 0, &frag_packets);
 			    	
 			packets.push_back(pac);
 
@@ -1375,6 +1402,10 @@ int main(int argc, char **argv) {
 
 	else if (aggr_srcport) {
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			if (it->src_port == -1) {
+				cerr << "File doesn't contain such aggregation key." << endl;
+				exit(1);
+			}
 			aggregate_packet(&aggr_packets, to_string(it->src_port), it->len);
 		}
 		if (sort_by_packets){
@@ -1399,6 +1430,10 @@ int main(int argc, char **argv) {
 	else if (aggr_dstport) {
 
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			if (it->dst_port == -1) {
+				cerr << "File doesn't contain such aggregation key." << endl;
+				exit(1);
+			}
 			aggregate_packet(&aggr_packets, to_string(it->dst_port), it->len);
 		}
 		if (sort_by_packets){
