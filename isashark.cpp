@@ -1,11 +1,3 @@
-#ifdef _USE_BSD
-#define _USE_BSD
-#endif
-
-#ifdef __FAVOR_BSD
-#define __FAVOR_BSD
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pcap.h>
@@ -14,8 +6,8 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
+// #include <netinet/tcp.h>
+// #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
 #include <netinet/if_ether.h> 
@@ -33,8 +25,6 @@
 //#include <pcap/vlan.h>
 //#include <uapi/linux/if_vlan.h>
  // #include <linux/tcp.h>
-
-
 #include <iomanip>
 #include <map>
 #include <iterator>
@@ -50,15 +40,18 @@
 #include <linux/if_ether.h>
 #endif
 
+#include "isashark.h"
+
 using namespace std;
 
-#ifndef PCAP_ERRBUF_SIZE
-#define PCAP_ERRBUF_SIZE (256)
-#endif
+// #ifndef PCAP_ERRBUF_SIZE
+// #define PCAP_ERRBUF_SIZE (256)
+// #endif
 
-#define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
-#define SIZE_IP_HDR (20)
-#define SIZE_IPV6_HDR (40)
+// #define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
+// #define SIZE_IP_HDR (20)
+// #define SIZE_IPV6_HDR (40)
+
 
 //TCP Flags
 // # define TH_FIN 0x01
@@ -169,6 +162,7 @@ class Packet
 		int vlan_code = -1;
 		string type_description = "";
 		string code_description = "";
+		bool is_unsupported = false;
 		void set_values(int packet_num, long long time_stamp, int length);
 		void set_L2_layer(string smac, string dmac, string vlanid);
 		void set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop);
@@ -209,10 +203,15 @@ void Packet::set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, ui
 }
 
 void Packet::output() {
-	cout << this->num << ": " << this->ts << " " << this->len << " | " << "Ethernet: " << this->src_mac << " " << this->dst_mac << " " << this->vlan_id << "| " << this->ipv << ": " << this->ip_addr_src << " " << this->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
-	this->ttlOrHop();
-	cout << " | ";
-	this->l4_output();
+	if (this->is_unsupported){
+		cout << this->num << ": " << "Unsupported protocol" << endl;
+	}
+	else {
+		cout << this->num << ": " << this->ts << " " << this->len << " | " << "Ethernet: " << this->src_mac << " " << this->dst_mac << " " << this->vlan_id << "| " << this->ipv << ": " << this->ip_addr_src << " " << this->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
+		this->ttlOrHop();
+		cout << " | ";
+		this->l4_output();
+	}	
 }
 
 void Packet::ttlOrHop() {
@@ -304,7 +303,7 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 
 		if (type == 1){
 			// cout << "destinaton unreachable ";
-			type_description = "destination unreachable";
+			type_description = "Destination unreachable";
 			switch(code) {
 				case 0:
 					// cout << "no route destination" << endl;
@@ -349,12 +348,12 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 
 		else if (type == 2) {
 			// cout << "packet too big" << endl;
-			type_description = "packet too big";
+			type_description = "Packet too big";
 		}
 
 		else if (type == 3) {
 			// cout << "time exceeded ";
-			type_description = "time exceeded";
+			type_description = "Time exceeded";
 			if (code == 0) {
 				// cout << "hop limit exceeded in transit" << endl;
 				code_description = "hop limit exceeded in transit";
@@ -368,7 +367,7 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 
 		else if (type == 4) {
 			// cout << "parameter problem ";
-			type_description = "parameter problem";
+			type_description = "Parameter problem";
 			switch(code) {
 				case 0:
 					// cout << "roneous header field encountered" << endl;
@@ -389,7 +388,15 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 
 		else if ((type == 100) || (type == 101) || (type == 200) || (type == 201)) {
 			// cout << "private experimentation ";
-			type_description = "private experimentation";
+			type_description = "Private experimentation";
+		}
+
+		else if (type == 128) {
+			type_description = "Echo Request";
+		}
+
+		else if (type == 129) {
+			type_description = "Echo Reply";
 		}
 	}
 	else if (version == 4) {
@@ -480,22 +487,22 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 			switch(code) {
 				case 0:
 					// cout << "redirect datagrams for the Network" << endl;
-					code_description = "redirect datagrams for the Network";
+					code_description = "Redirect datagrams for the Network";
 					break;
 
 				case 1:
 					// cout << "redirect datagrams for the Host" << endl;
-					code_description = "redirect datagrams for the Host";
+					code_description = "Redirect datagrams for the Host";
 					break;
 
 				case 2:
 					// cout << "redirect datagrams for the Type of Service and Network" << endl;
-					code_description = "redirect datagrams for the Type of Service and Network";
+					code_description = "Redirect datagrams for the Type of Service and Network";
 					break;
 
 				case 3:
 					// cout << "redirect datagrams for the Type of Service and Host" << endl;
-					code_description = "redirect datagrams for the Type of Service and Host";
+					code_description = "Redirect datagrams for the Type of Service and Host";
 					break;
 			}
 		}
@@ -526,7 +533,7 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 			// cout << "parameter problem ";
 			if (code == 0) {
 				// cout << "pointer indicates error" << endl;
-				code_description = "pointer indicates error";
+				code_description = "pointer indicates the error";
 			}
 
 			else if (code == 1) {
@@ -568,9 +575,9 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 // static int total_offset = 0;
 // static bool extended_hdr = false;
 
-void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset, bool extended_hdr);
+void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset, bool extended_hdr);
 
-void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
+void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *Pac) {
 
 	struct ip6_ext *my_ip6_ext;
 	int total_offset = 0;
@@ -580,13 +587,13 @@ void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
 	my_ip6_ext = (struct ip6_ext*)(packet+SIZE_ETHERNET+SIZE_IPV6_HDR);
 	// printf("next: %x\n",  my_ip6_ext->ip6e_nxt);
 	// printf("len: %x\n",  my_ip6_ext->ip6e_len);
-	while (total_offset < pac->len) {
+	while (total_offset < Pac->len) {
 		// cout << "total offset: " << total_offset << endl;
 		if ((my_ip6_ext->ip6e_nxt == 6) || (my_ip6_ext->ip6e_nxt == 17) || (my_ip6_ext->ip6e_nxt == 58)) {
 			// printf("my_ip6_ext: %x\n", my_ip6_ext->ip6e_nxt);
 			// printf("my_ip6_hdr: %x\n", my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt);
 			extended_hdr = true;
-			l4_protocol("IPv6", packet, pac, total_offset+34, extended_hdr);
+			l4_protocol("IPv6", packet, Pac, total_offset+34, extended_hdr);
 			//pac->output();
 			break;
 		} 
@@ -599,12 +606,13 @@ void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *pac) {
 	}	
 	
 	if (!extended_hdr) {
-		cerr << "Unsupported L4 layer protocol" << endl;
-		exit(1);	
+		Pac->is_unsupported = true;
+		// cerr << "Unsupported L4 layer protocol" << endl;
+		// exit(1);	
 	}
 }
 
-void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, bool extended_hdr = false) {
+void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, bool extended_hdr = false) {
 
 	struct tcphdr *my_tcp;
 	struct udphdr *my_udp;
@@ -634,17 +642,17 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 
 		switch (my_ip->ip_p) {
 			case 1:
-				icmp(4, packet, pac);
+				icmp(4, packet, Pac);
 				break;
 				
 			case 6:
 				l4_id = "TCP: ";
 				my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the TCP header
 				// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
-				src_port = ntohs(my_tcp->source);
-				dst_port = ntohs(my_tcp->dest);
-				seq_num = my_tcp->seq;
-				ack_byte = my_tcp->ack;
+				src_port = ntohs(my_tcp->th_sport);
+				dst_port = ntohs(my_tcp->th_dport);
+				seq_num = htonl(my_tcp->th_seq);
+				ack_byte = htonl(my_tcp->th_ack);
 
 				if (my_tcp->th_flags & TH_CWR){
 					// cout << "C";
@@ -724,8 +732,9 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 					break;
 
 				default:
-					cerr << "Unsupported L4 layer protocol" << endl;
-					exit(1);
+					Pac->is_unsupported = true;
+					// cerr << "Unsupported L4 layer protocol" << endl;
+					// exit(1);
 					break;
 			}
 	}
@@ -744,10 +753,10 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 					my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IPV6_HDR); // pointer to the TCP header
 				}
 				// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
-				src_port = ntohs(my_tcp->source);
-				dst_port = ntohs(my_tcp->dest);
-				seq_num = my_tcp->seq;
-				ack_byte = my_tcp->ack;
+				src_port = ntohs(my_tcp->th_sport);
+				dst_port = ntohs(my_tcp->th_dport);
+				seq_num = htonl(my_tcp->th_seq);
+				ack_byte = htonl(my_tcp->th_ack);
 
 				if (my_tcp->th_flags & TH_CWR){
 					// cout << "C";
@@ -815,7 +824,7 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 				}
 				// cout << endl;
 				if (extended_hdr) {
-					pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+					Pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
 				}
 				break;
 	    
@@ -832,21 +841,21 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 	    		dst_port = ntohs(my_udp->uh_dport);
 	    		//pac->set_L4_layer(l4_protocol, src_port, dst_port, seq_num, ack_byte, flags);
 	    		if (extended_hdr) {
-					pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+					Pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
 				}
 	    		break;
 
 	    	case 58:
 	    		if (extended_hdr) {
-	    			icmp(6, packet, pac, offset+14);
+	    			icmp(6, packet, Pac, offset+14);
 	    		}
 	    		else {
-	    			icmp(6, packet, pac);
+	    			icmp(6, packet, Pac);
 	    		}
 	    		break;
 
 	    	default:
-	    		extended_IPv6_header(next_hdr, packet, pac);
+	    		extended_IPv6_header(next_hdr, packet, Pac);
 	    		//pac->output();
 	    		break;
     	}
@@ -854,7 +863,7 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 
 	//pac->output();
 	if ((!extended_hdr) && (src_port != -1)) {
-		pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
+		Pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
 	}
 	
 }
@@ -866,7 +875,15 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
 	 	string src_ip;
 	 	string dst_ip;
 	 	uint8_t protocol;
-	 	map<string,int> hole_descriptors;
+	 	//reassembly process variables
+	 	char* data_buffer;
+	 	char* header_buffer; //here is placed fragment with offset = 0
+	 	char* fragment_block_bit_table;
+	 	unsigned int total_data_len;
+	 	//unsigned int timer; //15s ?
+	 	// char *data_buffer;
+
+	 	// map<string,int> hole_descriptors;
 	 	void create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl);
  };
 
@@ -875,40 +892,50 @@ void l4_protocol(string ipv, const u_char *packet, Packet *pac, int offset = 0, 
  	src_ip = srcip;
  	dst_ip = dstip;
  	protocol = prtcl;
- 	hole_descriptors.insert(make_pair("hole.first",0));
- 	hole_descriptors.insert(make_pair("hole.last",577));
+ 	total_data_len = 0;
+
+ 	// hole_descriptors.insert(make_pair("hole.first",0));
+ 	// hole_descriptors.insert(make_pair("hole.last",577));
  }
 
-void fragmentation_reassembly(unsigned short ip_id, string ip_src, string ip_dst, uint8_t ip_p, vector<FragmentedPacket> *frag_packets) {
+void fragmentation_reassembly(const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets) {
 	
+	struct ip* my_ip;
+	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
+	unsigned int total_len = int(packet[17]); // size of ip datagram (header+data)
+	unsigned int total_data_len = total_len - SIZE_IP_HDR;
 	bool exists = false;
+
+	cout << "total_len: " << total_len << endl;
+	cout << "total_data_len: " << total_data_len << endl;
 
 	if(frag_packets->empty()) {
 		// cout << "empty" << endl;
 		FragmentedPacket FPac;
-		FPac.create_fragmented_packet(ip_id, ip_src, ip_dst, ip_p);
+		FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
 		//FPac.hole_descriptors
 		frag_packets->push_back(FPac);
 
 	}
 	else {
 		for (vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
-			if ((it->id == ip_id) && (it->src_ip.compare(ip_src) == 0) && (it->dst_ip.compare(ip_dst) == 0) && (it->protocol == ip_p)) {
+			if ((it->id == my_ip->ip_id) && (it->src_ip.compare(ip_src) == 0) && (it->dst_ip.compare(ip_dst) == 0) && (it->protocol == my_ip->ip_p)) {
 				// for(vector<int>::iterator i = it->hole_descriptors.begin(); i != it->hole_descriptors.end(); ++i) {
 
 				// }
 				exists = true;
+
 			}
 		}
 		if (!exists){
 			FragmentedPacket FPac;
-			FPac.create_fragmented_packet(ip_id, ip_src, ip_dst, ip_p);
+			FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
 			frag_packets->push_back(FPac);	
 		}
 	}
 }
 
-void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<FragmentedPacket> *frag_packets = 0) {
+void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<FragmentedPacket> *frag_packets = 0) {
 	// #define _USE_BSD
 	// #define __FAVOR_BSD
 	string ipv;
@@ -928,7 +955,8 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<Fragment
 	struct ip6_hdr *my_ip6;
 
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
-	bool flag_mf = (my_ip->ip_off & IP_MF) != 0;
+	bool flag_mf = int(packet[20]) != 0;
+	unsigned int fragment_offset = int(packet[21]) << 3;
 
 	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
 
@@ -947,22 +975,26 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<Fragment
 		//ipv = "IPv4";
 		// size_ip = my_ip->ip_hl*4;                           // length of IP header
 
-		// printf("total len: %d\n", my_ip->ip_len);
+		// printf("total len: %d\n", total_len);
 		// printf("identification: %d\n", my_ip->ip_id);
-		// printf("offset: %d\n", my_ip->ip_off);
-		// printf("srcip: %s\n", inet_ntoa(my_ip->ip_src));
-		// printf("ip_prot: %d\n", my_ip->ip_p);
-		// // printf("offmask: %d\n", (my_ip->ip_off & IP_OFFMASK));
-		// // printf("MF: %d\n", (my_ip->ip_off & IP_MF));
-		// if(flag_mf) {
-		// 	cout << "1" << endl;
-		// }
-		// else {
-		// 	cout << "0" << endl;
-		// }
+		// printf("offset: %d\n", fragment_offset);
+		// //printf("offset: %d\n", my_ip->ip_off);
+		// // printf("srcip: %s\n", inet_ntoa(my_ip->ip_src));
+		// // printf("ip_prot: %d\n", my_ip->ip_p);
+		// // // printf("offmask: %d\n", (my_ip->ip_off & IP_OFFMASK));
+		// // // printf("MF: %d\n", (my_ip->ip_off & IP_MF));
+		// // if(flag_mf) {
+		// // 	cout << "1" << endl;
+		// // }
+		// // else {
+		// // 	cout << "0" << endl;
+		// // }
 
-		//printf("flag mf: %d\n", flag_mf);
+		// printf("flag mf: %d\n", flag_mf);
 
+		// for (int i = 0; i < Pac->len; i++) {
+		// 	printf("packet[%d]: %x\n", i, packet[i]);
+		// }
 
 		snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
 		ip_addr_src = ip_addr_src_ch;
@@ -972,8 +1004,8 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<Fragment
 
 		ttl = my_ip->ip_ttl;
 		
-		if ((flag_mf) || (my_ip->ip_off != 0)) {
-			fragmentation_reassembly(my_ip->ip_id, ip_addr_src, ip_addr_dst, my_ip->ip_p, frag_packets);
+		if ((flag_mf) || (fragment_offset != 0)) {
+			fragmentation_reassembly(packet, ip_addr_src, ip_addr_dst, frag_packets);
 		}
 		// else {
 		// 	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
@@ -1003,9 +1035,9 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *pac, vector<Fragment
 		hop_limit = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
 	}
 
-	pac->set_L3_layer(ip_v, ip_addr_src, ip_addr_dst, ttl, hop_limit);
+	Pac->set_L3_layer(ip_v, ip_addr_src, ip_addr_dst, ttl, hop_limit);
 
-	l4_protocol(ip_v, packet, pac);
+	l4_protocol(ip_v, packet, Pac);
 }
 
 
@@ -1023,31 +1055,167 @@ bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2) {
 
 // void aggregation_output(vector<Packet> *packets, vector<AggregatedPackets> *aggr_packets, string aggr_key, int size, bool sort_by_packets, bool sort_by_bytes) {
 // 		// cout << "mam srcip: " << aggrkey << endl;
-// 	for (vector<Packet>::iterator it = packets->begin(); it != packets->end(); ++it) {
-// 		aggregate_packet(aggr_packets, aggr_key, size);
-// 	}
-// 	if (sort_by_packets){
-// 		sort(aggr_packets->begin(), packets->end(), sortByPackets);
-// 		for (AggregatedPackets &aggrPack : aggr_packets) {
-// 			aggrPack.print_aggr();
+
+// 	if (strcmp(aggr_key, "srcmac") == 0) {
+// 		aggr_srcmac = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			aggregate_packet(&aggr_packets, it->src_mac, it->len);
+// 		}
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
 // 		}
 // 	}
-// 	else if (sort_by_bytes) {
-// 		sort(packets->begin(), packets->end(), sortByBytes);
-// 		for (AggregatedPackets &aggrPack : aggr_packets){
-// 			aggrPack.print_aggr();
+
+// 	else if (strcmp(aggrkey, "dstmac") == 0) {
+// 		aggr_dstmac = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			aggregate_packet(&aggr_packets, it->dst_mac, it->len);
 // 		}
-// 	} 
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
+// 		}
+// 	}
+
+// 	else if (strcmp(aggrkey, "srcip") == 0) {
+// 		aggr_srcip = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			aggregate_packet(&aggr_packets, it->ip_addr_src, it->len);
+// 		}
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
+// 		}
+// 	}
+
+// 	else if (strcmp(aggrkey, "dstip") == 0) {
+// 		aggr_dstip = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			aggregate_packet(&aggr_packets, it->ip_addr_dst, it->len);
+// 		}
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
+// 		}
+// 	}
+
+// 	else if (strcmp(aggrkey, "srcport") == 0) {
+// 		aggr_srcport = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			if (it->src_port == -1) {
+// 				cerr << "File doesn't contain such aggregation key." << endl;
+// 				exit(1);
+// 			}
+// 			aggregate_packet(&aggr_packets, to_string(it->src_port), it->len);
+// 		}
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
+// 		}
+// 	}
+
+// 	else if (strcmp(aggrkey, "dstport") == 0) {
+// 		aggr_dstport = true;
+// 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+// 			if (it->dst_port == -1) {
+// 				cerr << "File doesn't contain such aggregation key." << endl;
+// 				exit(1);
+// 			}
+// 			aggregate_packet(&aggr_packets, to_string(it->dst_port), it->len);
+// 		}
+// 		if (sort_by_packets){
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
+// 			for (AggregatedPackets &aggrPack : aggr_packets) {
+// 				aggrPack.print_aggr();
+// 			}
+// 		}
+// 		else if (sort_by_bytes) {
+// 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
+// 			for (AggregatedPackets &aggrPack : aggr_packets){
+// 				aggrPack.print_aggr();
+// 			}
+// 		} 
+// 		else {
+// 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
+// 				it2->print_aggr();
+// 			}
+// 		}
+// 	}
 // 	else {
-// 		for (vector<AggregatedPackets>::iterator it2 = aggr_packets->begin(); it2 != aggr_packets->end(); ++it2) {
-// 			it2->print_aggr();
-// 		}
+// 		cerr << "Wrong argument value [-a aggr-key]!" << endl;
+// 		exit(1);
 // 	}
 // }
 
 static string vlan_id("");
 
-void next_header_type(const u_char* packet, Packet *pac, int offset, vector<FragmentedPacket> *frag_packets) {
+void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<FragmentedPacket> *frag_packets) {
 
 	// cout << vlan_id << endl;
 	char src_mac_ch[18];
@@ -1072,12 +1240,12 @@ void next_header_type(const u_char* packet, Packet *pac, int offset, vector<Frag
 	switch (ntohs(eptr->ether_type)) {
     	case ETHERTYPE_IP:
     		ipv = "IPv4";
-	    	l3_protocol(ipv, packet+offset, pac, frag_packets);
+	    	l3_protocol(ipv, packet+offset, Pac, frag_packets);
 	    	break;
 
     	case ETHERTYPE_IPV6:
     		ipv = "IPv6";
-			l3_protocol(ipv, packet+offset, pac);
+			l3_protocol(ipv, packet+offset, Pac);
 		    break;
 
 		case ETH_P_8021Q: 
@@ -1085,7 +1253,7 @@ void next_header_type(const u_char* packet, Packet *pac, int offset, vector<Frag
 	  //    			printf("eth %d: %d \n",i, packet[i]);
 			// }
 	    	vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
-	    	next_header_type(packet, pac, offset+4, frag_packets);
+	    	next_header_type(packet, Pac, offset+4, frag_packets);
 	    	break;
 
 	    case ETH_P_8021AD:
@@ -1094,17 +1262,18 @@ void next_header_type(const u_char* packet, Packet *pac, int offset, vector<Frag
 	  //    			printf("eth %d: %x \n",i, packet[i]);
 			// }	
 	    	vlan_id = to_string(packet[SIZE_ETHERNET+1]) + " ";
-			next_header_type(packet, pac, offset+4, frag_packets);
+			next_header_type(packet, Pac, offset+4, frag_packets);
 			break;
 
 		default:
-			cerr << "Unknown EtherType value!" << endl;
-			exit(1);
+			Pac->is_unsupported = true;
+			// cerr << "Unknown EtherType value!" << endl;
+			// exit(1);
 			break;
 	}
 //void Packet::set_L2_layer(string smac, string dmac, string vlanid) {
 	// cout << vlan_id_final << endl;
-	pac->set_L2_layer(src_mac, dst_mac, vlan_id);
+	Pac->set_L2_layer(src_mac, dst_mac, vlan_id);
 }
 
 
@@ -1253,14 +1422,14 @@ int main(int argc, char **argv) {
 				break;
 
 			default:
-				cout << "default" << endl;
-				if (optarg) {
-					cout << optarg << endl;
-				}
-				break;
+				// cout << "default" << endl;
+				// if (optarg) {
+				// 	cout << optarg << endl;
+				// }
 				// err(1, "Invalid input arguments!\n");
-				// cerr << "Invalid input arguments!" << endl;
-				// exit(1);
+				cerr << "Invalid input arguments!" << endl;
+				exit(1);
+				break;
 		}
 
 	}
@@ -1293,7 +1462,7 @@ int main(int argc, char **argv) {
 
 			pac.set_values(p, ts, header.len);
 
-			// cout << p << endl;
+			// cout << p << "." << endl;
 			next_header_type(packet, &pac, 0, &frag_packets);
 			    	
 			packets.push_back(pac);
@@ -1463,10 +1632,11 @@ int main(int argc, char **argv) {
 	}
 	else {
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-		    cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
-		    it->ttlOrHop();
-		    cout << " | ";
-		    it->l4_output();
+			it->output();
+		    // cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
+		    // it->ttlOrHop();
+		    // cout << " | ";
+		    // it->l4_output();
 		}
 	}
 	return 0;
