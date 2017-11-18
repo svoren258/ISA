@@ -1003,7 +1003,8 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 	// bool changed = false;
 	bool exists = false;
 	bool fragment_exists = false;
-	bool flag_mf = int(packet[20]) != 0;
+	// bool flag_mf = int(packet[20]) != 0;
+	bool flag_mf = int(packet[20]) & 0x20;
 	unsigned int fragment_offset = int(packet[21]) << 3;
 	//int data[total_data_len];
 	int data_len;
@@ -1356,7 +1357,8 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 	struct ip6_hdr *my_ip6;
 
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
-	bool flag_mf = int(packet[20]) != 0;
+	bool flag_mf = int(packet[20]) & 0x20;
+	// bool flag_mf = int(packet[20]) != 0;
 	unsigned int fragment_offset = int(packet[21]) << 3;
 
 	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET);
@@ -1396,7 +1398,7 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 		// // 	cout << "0" << endl;
 		// // }
 
-		// printf("flag mf: %d\n", flag_mf);
+		printf("flag mf: %d\n", flag_mf);
 
 		
 		snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
@@ -1408,7 +1410,7 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 		ttl = my_ip->ip_ttl;
 		
 		if ((flag_mf) || (fragment_offset != 0)) {
-			Pac->is_reassembled = false;
+			// Pac->is_reassembled = false;
 			//printf("data len: %d\n", (int)packet[17] - SIZE_IP_HDR);
 			fragmentation_reassembly(Pac, packet, ip_addr_src, ip_addr_dst, frag_packets);
 			// for(vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
