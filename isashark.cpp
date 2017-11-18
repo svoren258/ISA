@@ -27,6 +27,7 @@
  // #include <linux/tcp.h>
 #include <iomanip>
 #include <map>
+#include <list>
 #include <iterator>
 #include <algorithm>
 #include <vector>
@@ -73,14 +74,18 @@ class AggregatedPackets {
 		int num = 0;
 		int size = 0;
 		// bool is_created = false;
-		void print_aggr();
+		void print_aggr(int limit, bool is_limited, int counter);
 };
 
-void AggregatedPackets::print_aggr() {
+void AggregatedPackets::print_aggr(int limit, bool is_limited, int counter) {
 	if (this->aggrkey.compare("-1") == 0) {
 		return;
 		// cerr << "Aggregation fault." << endl;
 		// exit(1);
+	}
+
+	if ((is_limited) && (counter > limit)) {
+		return;
 	}
 	cout << this->aggrkey << ": " << this->num << " " << this->size << endl;
 }
@@ -163,6 +168,10 @@ class Packet
 		string type_description = "";
 		string code_description = "";
 		bool is_unsupported = false;
+		bool is_reassembled = false;
+		int total_packet_len;
+		//int *data_buffer;
+		char *data_buffer;
 		void set_values(int packet_num, long long time_stamp, int length);
 		void set_L2_layer(string smac, string dmac, string vlanid);
 		void set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop);
@@ -283,7 +292,7 @@ void Packet::set_ICMP(string icmp_v, int type, int code, string type_d, string c
 	code_description = code_d; 
 }
 
-void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
+void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 
 	struct icmp* my_icmp;
 	struct icmp6_hdr* my_icmp6;
@@ -401,7 +410,12 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 	}
 	else if (version == 4) {
 		icmp_ver = "ICMPv4: ";
-		my_icmp = (struct icmp*)(packet+SIZE_ETHERNET+SIZE_IP_HDR);
+		if (Pac->is_reassembled) {
+			my_icmp = (struct icmp*)(Pac->data_buffer);
+		}
+		else {
+			my_icmp = (struct icmp*)(packet+SIZE_ETHERNET+SIZE_IP_HDR);
+		}
 		type = my_icmp->icmp_type;
 		code = my_icmp->icmp_code;
 
@@ -569,7 +583,7 @@ void icmp(int version, const u_char *packet, Packet *pac, int offset = 0) {
 		}
 	}
 
-	pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
+	Pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
 }
 
 // static int total_offset = 0;
@@ -626,6 +640,7 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 	struct ip6_ext* my_ip6_ext;
 	struct ip6_rthdr* my_ip6_rthdr;
 
+
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);        // skip Ethernet header
 	my_ip6 = (struct ip6_hdr*)(packet+SIZE_ETHERNET+offset);
 
@@ -635,7 +650,6 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 	uint32_t seq_num = -1;
 	string l4_id;
 	string flags = "";
-
 	// cout << ipv << endl;
 
 	if (ipv.compare("IPv4") == 0) {
@@ -647,10 +661,21 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 				
 			case 6:
 				l4_id = "TCP: ";
-				my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the TCP header
+				cout << "TCP" << endl;
+				if (Pac->is_reassembled) {
+						// printf("Pac data buffer: %s\n", Pac->data_buffer);
+					cout << "is_reassembled" << endl;
+					my_tcp = (struct tcphdr *)(Pac->data_buffer);
+				}
+				else {
+					my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the TCP header
+				}
+				// my_tcp = (struct tcphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the TCP header
 				// cout << ntohs(my_tcp->th_sport) << " " << ntohs(my_tcp->th_dport) << " " << my_tcp->th_seq << " " << my_tcp->th_ack << " ";
 				src_port = ntohs(my_tcp->th_sport);
 				dst_port = ntohs(my_tcp->th_dport);
+				// seq_num = (my_tcp->th_seq);
+				// ack_byte = (my_tcp->th_ack);
 				seq_num = htonl(my_tcp->th_seq);
 				ack_byte = htonl(my_tcp->th_ack);
 
@@ -725,7 +750,15 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 				case 17:
 					// cout << "UDP: ";
 					l4_id = "UDP: ";
-					my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the UDP header
+					cout << "UDP" << endl;
+					if (Pac->is_reassembled) {
+						// printf("Pac data buffer: %s\n", Pac->data_buffer);
+						cout << "is_reassembled" << endl;
+						my_udp = (struct udphdr *)(Pac->data_buffer);
+					}
+					else {
+						my_udp = (struct udphdr *) (packet+SIZE_ETHERNET+SIZE_IP_HDR); // pointer to the UDP header
+					}
 					// cout << ntohs(my_udp->uh_sport) << " " << ntohs(my_udp->uh_dport) << endl;
 					src_port = ntohs(my_udp->uh_sport);
 					dst_port = ntohs(my_udp->uh_dport);
@@ -865,71 +898,440 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 	if ((!extended_hdr) && (src_port != -1)) {
 		Pac->set_L4_layer(l4_id, src_port, dst_port, seq_num, ack_byte, flags);
 	}
-	
+
 }
 
- class FragmentedPacket
+
+class Hole_Descriptor{
+	public:
+		int hole_first = 0;
+		int hole_last = 1023;
+		bool actual = true;
+};
+
+
+ class FragmentedPacket: public Packet
  {
 	 public:
+	 	int packet_id;
 	 	unsigned short id;
-	 	string src_ip;
-	 	string dst_ip;
+	 	// string src_ip;
+	 	// string dst_ip;
 	 	uint8_t protocol;
 	 	//reassembly process variables
-	 	char* data_buffer;
-	 	char* header_buffer; //here is placed fragment with offset = 0
-	 	char* fragment_block_bit_table;
-	 	unsigned int total_data_len;
+	 	int expected_packet_len = 0;
+	 	int total_packet_len = 0;
+	 	//int data_buffer[1024];
+	 	char data_buffer[1024];
+	 	int fragment_offset;
+	 	// bool is_reassembled = false;
+	 	// int num_of_fragments = 0;
 	 	//unsigned int timer; //15s ?
 	 	// char *data_buffer;
 
-	 	// map<string,int> hole_descriptors;
+	 	vector<Hole_Descriptor> hole_descriptor_list;
+	 	// void save_data(int offset, int *data, int data_len);
+	 	void save_data(int offset, char *data, int data_len);
 	 	void create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl);
+
  };
 
  void FragmentedPacket::create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl) {
  	id = id_field;
- 	src_ip = srcip;
- 	dst_ip = dstip;
+ 	ip_addr_src = srcip;
+ 	ip_addr_dst = dstip;
  	protocol = prtcl;
- 	total_data_len = 0;
-
- 	// hole_descriptors.insert(make_pair("hole.first",0));
- 	// hole_descriptors.insert(make_pair("hole.last",577));
  }
 
-void fragmentation_reassembly(const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets) {
-	
+static int packet_id = 0;
+
+// int size_of_array(int *array) {
+// 	return sizeof(array)/sizeof(array[0]);
+// }
+
+// void array_to_array(int *dst, int *src, int len) {
+// 	for (int i = 0; i < len; i++) {
+// 		dst[i] = src[i];
+// 	}
+// }
+
+
+void array_to_array(char *dst, char *src, int len) {
+	for (int i = 0; i < len; i++) {
+		dst[i] = src[i];
+	}
+}
+// void FragmentedPacket::save_data(int offset, int *data, int data_len) {
+// 	//int array_len = size_of_array(data);
+// 	for(int x = 0; x < data_len; x++) {
+// 		this->data_buffer[x+offset] = data[x];
+// 		printf("%x ", this->data_buffer[x+offset]);
+// 	}
+// 	cout << endl;
+// 	// for (int k = offset; k < offset+sizeof(this->data_buffer); k++) {
+// 	// 	printf("%x ", this->data_buffer[k]);
+// 	// 	if (k % 8 == 0) {
+// 	// 		cout << endl;
+// 	// 	}
+// 	// }
+// 	// cout << endl;
+// 	// printf("DATA: %s\n", this->data_buffer);
+// }
+
+void FragmentedPacket::save_data(int offset, char *data, int data_len) {
+	//int array_len = size_of_array(data);
+	for(int x = 0; x < data_len; x++) {
+		this->data_buffer[x+offset] = data[x];
+		printf("%x ", this->data_buffer[x+offset]);
+	}
+	cout << endl;
+	// for (int k = offset; k < offset+sizeof(this->data_buffer); k++) {
+	// 	printf("%x ", this->data_buffer[k]);
+	// 	if (k % 8 == 0) {
+	// 		cout << endl;
+	// 	}
+	// }
+	// cout << endl;
+	// printf("DATA: %s\n", this->data_buffer);
+}
+
+void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets) {
 	struct ip* my_ip;
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
-	unsigned int total_len = int(packet[17]); // size of ip datagram (header+data)
-	unsigned int total_data_len = total_len - SIZE_IP_HDR;
+	// unsigned int total_len = int(packet[17]); // size of ip datagram (header+data)
+	unsigned int total_data_len = int(packet[17]) - SIZE_IP_HDR;
+	// bool changed = false;
 	bool exists = false;
+	bool fragment_exists = false;
+	bool flag_mf = int(packet[20]) != 0;
+	unsigned int fragment_offset = int(packet[21]) << 3;
+	//int data[total_data_len];
+	int data_len;
+	char data[total_data_len];
+	// int data_buffer[1024];
+	cout << "DATA: ";
+	for (int x = 0; x < total_data_len; ++x) {
+		data[x] = packet[Pac->len-total_data_len+x];
+		// printf("%x ", data[x]);
+	}
+	cout << endl;
+	data_len = sizeof(data)/sizeof(data[0]);
+	// cout << "data size: " << data_len << endl;
+	// for (int y = 0; y < strlen(data); y++) {
+	// 	printf("%c", data[y]);
+	// }
+	// cout << endl;
 
-	cout << "total_len: " << total_len << endl;
-	cout << "total_data_len: " << total_data_len << endl;
+	printf("DATA: %s\n", data);
+	// memcpy(data_buffer, data, strlen(data)+1);
+	// // printf("strlen data_buffer: %d\n", strlen(data_buffer));
+	// printf("DATA_BUFFER: %s\n", data_buffer);
+
+	// int packet_id = 0;
+
+
+	// cout << "total_len: " << total_len << endl;
+	// cout << "total_data_len: " << total_data_len << endl;
 
 	if(frag_packets->empty()) {
+		cout << "Creating new frag_packet" << endl;
 		// cout << "empty" << endl;
 		FragmentedPacket FPac;
+		FPac.packet_id = packet_id++;
+		cout << "Packet ID: " << FPac.packet_id << endl;
 		FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
-		//FPac.hole_descriptors
+		FPac.fragment_offset = fragment_offset;
+		Hole_Descriptor Hole;
+		FPac.hole_descriptor_list.push_back(Hole);
+		for(vector<Hole_Descriptor>::iterator i = FPac.hole_descriptor_list.begin(); i != FPac.hole_descriptor_list.end(); ++i) {
+			if (!i->actual) {
+				cout << "not actual" << endl;
+				continue;
+			}
+			if (!flag_mf) {
+				FPac.expected_packet_len = fragment_offset+total_data_len;
+				// i->hole_last = fragment_offset;
+				cout << "expected packet len: " << FPac.expected_packet_len << endl;
+			}
+			cout << "hole first: " << i->hole_first << endl;
+			cout << "hole last: " << i->hole_last << endl;
+			cout << "fragment first: " << fragment_offset << endl;
+			cout << "fragment last: " << fragment_offset+total_data_len-1 << endl;
+			if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
+				continue;
+			}
+			else if (i->hole_first < fragment_offset) {
+				i->actual = false;
+				Hole_Descriptor NewHole;
+				NewHole.hole_first = i->hole_first;
+				NewHole.hole_last = fragment_offset-1;
+				cout << "new hole first: " << NewHole.hole_first << endl;
+				cout << "new hole last: " << NewHole.hole_last << endl;
+				// cout << "skuska hole last " << i->hole_last << endl;
+
+				if (i->hole_last > fragment_offset+total_data_len-1) {
+					// changed = true;
+					Hole_Descriptor NewHole2;
+					NewHole2.hole_first = fragment_offset+total_data_len;
+					NewHole2.hole_last = i->hole_last;
+					cout << "new hole2 first: " << NewHole2.hole_first << endl;
+					cout << "new hole2 last: " << NewHole2.hole_last << endl;
+					FPac.hole_descriptor_list.push_back(NewHole2);
+				}
+				// if(!changed) {
+				// 	FPac.hole_descriptor_list.pop_back();
+				// }
+				FPac.hole_descriptor_list.push_back(NewHole);
+				FPac.total_packet_len += total_data_len;
+				// FPac.save_data(fragment_offset, data, data_len);
+				FPac.save_data(fragment_offset, data, total_data_len);
+				//size_t index = distance(it->hole_descriptor_list.begin(), i);
+				//i = it->hole_descriptor_list.erase(i);
+
+				// it->hole_descriptor_list.erase(it->hole_descriptor_list.begin());
+				//cout << "data len " << total_data_len << endl;
+					// it->total_packet_len += total_data_len;
+				break;
+			}
+
+			else if (i->hole_first == fragment_offset) {
+				if (i->hole_last == fragment_offset+total_data_len-1) {
+					i->actual = false;
+					cout << "XXX" << endl;
+					FPac.total_packet_len += total_data_len;
+					//FPac.save_data(fragment_offset, data, data_len);
+					FPac.save_data(fragment_offset, data, total_data_len);
+				}
+				else {
+					i->hole_first = fragment_offset+total_data_len;
+					cout << "changed hole_first: " << i->hole_first << endl;
+					FPac.total_packet_len += total_data_len;
+					//FPac.save_data(fragment_offset, data, data_len);
+					FPac.save_data(fragment_offset, data, total_data_len);
+				}
+
+				break;
+			}
+			else if (i->hole_last == fragment_offset+total_data_len-1) {
+				i->hole_last = fragment_offset-1;
+				cout << "changed hole_last: " << i->hole_last << endl;
+				FPac.total_packet_len += total_data_len;
+				// FPac.save_data(fragment_offset, data, data_len);
+				FPac.save_data(fragment_offset, data, total_data_len);
+				break;
+			}
+		}
+		// if (FPac.expected_packet_len == FPac.total_packet_len) {
+		// 	Pac->is_reassembled = true;
+		// 	cout << "total packet len " << FPac.total_packet_len << endl;
+		// 	break;
+		// }	
+		cout << "packet len " << FPac.total_packet_len << endl;
 		frag_packets->push_back(FPac);
 
 	}
 	else {
 		for (vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
-			if ((it->id == my_ip->ip_id) && (it->src_ip.compare(ip_src) == 0) && (it->dst_ip.compare(ip_dst) == 0) && (it->protocol == my_ip->ip_p)) {
+			
+			if ((it->id == my_ip->ip_id) && (it->ip_addr_src.compare(ip_src) == 0) && (it->ip_addr_dst.compare(ip_dst) == 0) && (it->protocol == my_ip->ip_p)) {
 				// for(vector<int>::iterator i = it->hole_descriptors.begin(); i != it->hole_descriptors.end(); ++i) {
-
-				// }
+				cout << "Packet ID: " << it->packet_id << endl;
+				cout << "Exists in frag_packets!" << endl;
 				exists = true;
+			
+				for(vector<Hole_Descriptor>::iterator i = it->hole_descriptor_list.begin(); i != it->hole_descriptor_list.end(); ++i) {
+					if (!i->actual) {
+						cout << "not actual" << endl;
+						continue;
+					}
+					if (!flag_mf) {
+						it->expected_packet_len = fragment_offset+total_data_len;
+						// i->hole_last = fragment_offset;
+						cout << "expected packet len: " << it->expected_packet_len << endl;
+					}
+					cout << "hole first: " << i->hole_first << endl;
+					cout << "hole last: " << i->hole_last << endl;
+					cout << "fragment first: " << fragment_offset << endl;
+					cout << "fragment last: " << fragment_offset+total_data_len-1 << endl;
+					if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
+						continue;
+					}
+					else if (i->hole_first < fragment_offset) {
+						i->actual = false;
+						Hole_Descriptor NewHole;
+						NewHole.hole_first = i->hole_first;
+						NewHole.hole_last = fragment_offset-1;
+						cout << "new hole first: " << NewHole.hole_first << endl;
+						cout << "new hole last: " << NewHole.hole_last << endl;
+						// cout << "skuska hole last " << i->hole_last << endl;
 
+						if (i->hole_last > fragment_offset+total_data_len-1) {
+							// changed = true;
+							Hole_Descriptor NewHole2;
+							NewHole2.hole_first = fragment_offset+total_data_len;
+							NewHole2.hole_last = i->hole_last;
+							cout << "new hole2 first: " << NewHole2.hole_first << endl;
+							cout << "new hole2 last: " << NewHole2.hole_last << endl;
+							it->hole_descriptor_list.push_back(NewHole2);
+						}
+					
+						it->hole_descriptor_list.push_back(NewHole);
+						it->total_packet_len += total_data_len;
+						// it->save_data(fragment_offset, data, data_len);
+						//size_t index = distance(it->hole_descriptor_list.begin(), i);
+						it->save_data(fragment_offset, data, total_data_len);
+
+						//i = it->hole_descriptor_list.erase(i);
+
+						// it->hole_descriptor_list.erase(it->hole_descriptor_list.begin());
+						//cout << "data len " << total_data_len << endl;
+						break;
+					}
+
+					else if (i->hole_first == fragment_offset) {
+						if (i->hole_last == fragment_offset+total_data_len-1) {
+							i->actual = false;
+							cout << "XXX" << endl;
+							it->total_packet_len += total_data_len;
+							// it->save_data(fragment_offset, data, data_len);
+							it->save_data(fragment_offset, data, total_data_len);
+						}
+						else {
+							i->hole_first = fragment_offset+total_data_len;
+							cout << "changed hole_first: " << i->hole_first << endl;
+							it->total_packet_len += total_data_len;
+							// it->save_data(fragment_offset, data, data_len);
+							it->save_data(fragment_offset, data, total_data_len);
+						}
+
+						break;
+					}
+					else if (i->hole_last == fragment_offset+total_data_len-1) {
+						i->hole_last = fragment_offset-1;
+						cout << "changed hole_last: " << i->hole_last << endl;
+						it->total_packet_len += total_data_len;
+						// it->save_data(fragment_offset, data, data_len);
+						it->save_data(fragment_offset, data, total_data_len);
+						break;
+					}
+				}
+
+				if (it->expected_packet_len == it->total_packet_len) {
+					
+					Pac->is_reassembled = true;
+
+					Pac->total_packet_len = it->total_packet_len;
+					//Pac->data_buffer = new int[it->total_packet_len];
+					Pac->data_buffer = new char[it->total_packet_len];
+					array_to_array(Pac->data_buffer, it->data_buffer, it->total_packet_len);
+					cout << "Total packet length is: " << it->total_packet_len << endl;
+				
+					
+					cout << endl;
+					break;
+				}		
+
+				cout << "packet len " << it->total_packet_len << endl;
+				break;
 			}
+
+			
+			
+			
 		}
-		if (!exists){
+		if ((!exists) && (!Pac->is_reassembled)) {
+			cout << "Creating new frag_packet" << endl;
 			FragmentedPacket FPac;
+			FPac.packet_id = packet_id++;
+			cout << "Packet ID: " << FPac.packet_id << endl;
 			FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
+			FPac.fragment_offset = fragment_offset;
+			Hole_Descriptor Hole;
+			FPac.hole_descriptor_list.push_back(Hole);
+			for(vector<Hole_Descriptor>::iterator i = FPac.hole_descriptor_list.begin(); i != FPac.hole_descriptor_list.end(); ++i) {
+				if (!i->actual) {
+					cout << "not actual" << endl;
+					continue;
+				}
+				if (!flag_mf) {
+					FPac.expected_packet_len = fragment_offset+total_data_len;
+					// i->hole_last = fragment_offset;
+					cout << "expected packet len: " << FPac.expected_packet_len << endl;
+				}
+				cout << "hole first: " << i->hole_first << endl;
+				cout << "hole last: " << i->hole_last << endl;
+				cout << "fragment first: " << fragment_offset << endl;
+				cout << "fragment last: " << fragment_offset+total_data_len-1 << endl;
+				if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
+					continue;
+				}
+				else if (i->hole_first < fragment_offset) {
+					i->actual = false;
+					Hole_Descriptor NewHole;
+					NewHole.hole_first = i->hole_first;
+					NewHole.hole_last = fragment_offset-1;
+					cout << "new hole first: " << NewHole.hole_first << endl;
+					cout << "new hole last: " << NewHole.hole_last << endl;
+					// cout << "skuska hole last " << i->hole_last << endl;
+
+					if (i->hole_last > fragment_offset+total_data_len-1) {
+						// changed = true;
+						Hole_Descriptor NewHole2;
+						NewHole2.hole_first = fragment_offset+total_data_len;
+						NewHole2.hole_last = i->hole_last;
+						cout << "new hole2 first: " << NewHole2.hole_first << endl;
+						cout << "new hole2 last: " << NewHole2.hole_last << endl;
+						FPac.hole_descriptor_list.push_back(NewHole2);
+					}
+					// if(!changed) {
+					// 	FPac.hole_descriptor_list.pop_back();
+					// }
+					FPac.hole_descriptor_list.push_back(NewHole);
+					FPac.total_packet_len += total_data_len;
+					// FPac.save_data(fragment_offset, data, data_len);
+					FPac.save_data(fragment_offset, data, total_data_len);
+
+					//size_t index = distance(it->hole_descriptor_list.begin(), i);
+					//i = it->hole_descriptor_list.erase(i);
+
+					// it->hole_descriptor_list.erase(it->hole_descriptor_list.begin());
+					//cout << "data len " << total_data_len << endl;
+						//it->total_packet_len += total_data_len;
+					break;
+				}
+
+				else if (i->hole_first == fragment_offset) {
+					if (i->hole_last == fragment_offset+total_data_len-1) {
+						i->actual = false;
+						cout << "XXX" << endl;
+						FPac.total_packet_len += total_data_len;
+						// FPac.save_data(fragment_offset, data, data_len);
+						FPac.save_data(fragment_offset, data, total_data_len);
+					}
+					else {
+						i->hole_first = fragment_offset+total_data_len;
+						cout << "changed hole_first: " << i->hole_first << endl;
+						FPac.total_packet_len += total_data_len;
+						// FPac.save_data(fragment_offset, data, data_len);
+						FPac.save_data(fragment_offset, data, total_data_len);
+					}
+					break;
+				}
+				else if (i->hole_last == fragment_offset+total_data_len-1) {
+					i->hole_last = fragment_offset-1;
+					cout << "changed hole_last: " << i->hole_last << endl;
+					FPac.total_packet_len += total_data_len;
+					// FPac.save_data(fragment_offset, data, data_len);
+					FPac.save_data(fragment_offset, data, total_data_len);
+					break;
+				}
+			}
+			// if (FPac.expected_packet_len == FPac.total_packet_len) {
+			// 	Pac->is_reassembled = true;
+			// 	cout << "total packet len " << FPac.total_packet_len << endl;
+			// 	break;
+			// }	
+			cout << "packet len " << FPac.total_packet_len << endl;
 			frag_packets->push_back(FPac);	
 		}
 	}
@@ -945,7 +1347,6 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 	string ip_addr_dst;
 	int ttl = -1;
 	int hop_limit = -1;
-
 	u_int size_ip;
 
 	const struct tcphdr *my_tcp;
@@ -977,7 +1378,12 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 
 		// printf("total len: %d\n", total_len);
 		// printf("identification: %d\n", my_ip->ip_id);
-		// printf("offset: %d\n", fragment_offset);
+		printf("offset: %d\n", fragment_offset);
+
+		// for(int i = 34; i < 42; i++) {
+		// 	printf("data: %x\n", packet[i]);
+		// }
+		//printf("data len: %d\n", (int)packet[17] - SIZE_IP_HDR);
 		// //printf("offset: %d\n", my_ip->ip_off);
 		// // printf("srcip: %s\n", inet_ntoa(my_ip->ip_src));
 		// // printf("ip_prot: %d\n", my_ip->ip_p);
@@ -992,10 +1398,7 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 
 		// printf("flag mf: %d\n", flag_mf);
 
-		// for (int i = 0; i < Pac->len; i++) {
-		// 	printf("packet[%d]: %x\n", i, packet[i]);
-		// }
-
+		
 		snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
 		ip_addr_src = ip_addr_src_ch;
 
@@ -1005,7 +1408,12 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 		ttl = my_ip->ip_ttl;
 		
 		if ((flag_mf) || (fragment_offset != 0)) {
-			fragmentation_reassembly(packet, ip_addr_src, ip_addr_dst, frag_packets);
+			Pac->is_reassembled = false;
+			//printf("data len: %d\n", (int)packet[17] - SIZE_IP_HDR);
+			fragmentation_reassembly(Pac, packet, ip_addr_src, ip_addr_dst, frag_packets);
+			// for(vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
+			// 	cout << it->ip_addr_src << endl;
+			// }
 		}
 		// else {
 		// 	snprintf(ip_addr_src_ch, sizeof(ip_addr_src_ch), "%s", inet_ntoa(my_ip->ip_src));
@@ -1037,7 +1445,12 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 
 	Pac->set_L3_layer(ip_v, ip_addr_src, ip_addr_dst, ttl, hop_limit);
 
-	l4_protocol(ip_v, packet, Pac);
+		// for (int i = 0; i < Pac->total_packet_len; i++) {
+		// 	printf("packet[%d]: %x\n", i, packet[i]);
+		// }
+
+	l4_protocol(ip_v, packet, Pac);	
+	
 }
 
 
@@ -1322,10 +1735,12 @@ int main(int argc, char **argv) {
 	bool filter = false;
 	bool vlan1q = false;
 	bool vlan1ad = false;
+	bool fragmentation = false;
 
 	///counter variables
 	int p = 0;
 	int n = 0;
+	int counter;
 
 
 	vector<Packet> packets;
@@ -1450,22 +1865,21 @@ int main(int argc, char **argv) {
 
 		while ((packet = pcap_next(handle,&header)) != NULL){
 
-			Packet pac;
+			Packet Pac;
 			n++;
 			p++;
 
-			if ((is_limited) && (n > limit)) {
-				break;
-			}
-
 			long long ts = 100000 * header.ts.tv_sec + header.ts.tv_usec;
 
-			pac.set_values(p, ts, header.len);
-
-			// cout << p << "." << endl;
-			next_header_type(packet, &pac, 0, &frag_packets);
+			Pac.set_values(p, ts, header.len);
+			cout << endl;
+			cout << p << "." << endl;
+			next_header_type(packet, &Pac, 0, &frag_packets);
+			if (!frag_packets.empty()) {
+				fragmentation = true;
+			}
 			    	
-			packets.push_back(pac);
+			packets.push_back(Pac);
 
 		}
 
@@ -1475,6 +1889,7 @@ int main(int argc, char **argv) {
 
 
 	if (aggr_srcip) {
+		counter = 1;
 		// cout << "mam srcip: " << aggrkey << endl;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			aggregate_packet(&aggr_packets, it->ip_addr_src, it->len);
@@ -1482,94 +1897,97 @@ int main(int argc, char **argv) {
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 	}
 
 	else if (aggr_dstip) {
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			aggregate_packet(&aggr_packets, it->ip_addr_dst, it->len);
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 	}
 
 	else if (aggr_srcmac) {
-
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			aggregate_packet(&aggr_packets, it->src_mac, it->len);
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 
 	}
 
 	else if (aggr_dstmac) {
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			aggregate_packet(&aggr_packets, it->dst_mac, it->len);
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 	}
 
 	else if (aggr_srcport) {
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			if (it->src_port == -1) {
 				cerr << "File doesn't contain such aggregation key." << endl;
@@ -1580,24 +1998,24 @@ int main(int argc, char **argv) {
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 	}
 
 	else if (aggr_dstport) {
-
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
 			if (it->dst_port == -1) {
 				cerr << "File doesn't contain such aggregation key." << endl;
@@ -1608,31 +2026,58 @@ int main(int argc, char **argv) {
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
 			for (AggregatedPackets &aggrPack : aggr_packets) {
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		}
 		else if (sort_by_bytes) {
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByBytes_a);
 			for (AggregatedPackets &aggrPack : aggr_packets){
-				aggrPack.print_aggr();
+				aggrPack.print_aggr(limit, is_limited, counter++);
 			}
 		} 
 		else {
 			for (vector<AggregatedPackets>::iterator it2 = aggr_packets.begin(); it2 != aggr_packets.end(); ++it2) {
-				it2->print_aggr();
+				it2->print_aggr(limit, is_limited, counter++);
 			}
 		}
 
 	}
 	else if (sort_by_bytes) {
+		counter = 1;
 		sort(packets.begin(), packets.end(), sortByBytes);
-		for (Packet &pack : packets){
-			pack.output();
+		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
+			if ((is_limited) && (counter > limit)) {
+				break;
+			}
+			it->output();
+			counter++;
 		}
+		// for (Packet &pack : packets){
+		// 	pack.output();
+		// }
 	}
 	else {
+		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-			it->output();
+			
+			if (fragmentation) {
+
+				if (it->is_reassembled) { 
+					it->num = counter;
+					if ((is_limited) && (counter > limit)) {
+						break;
+					}
+					it->output();
+					counter++;
+				}
+			}
+			else {
+				if ((is_limited) && (it->num > limit)) {
+					break;
+				}
+				it->output();
+			}
+			// it->output();
 		    // cout << it->num << ": " << it->ts << " " << it->len << " | " << "Ethernet: " << it->src_mac << " " << it->dst_mac << " " << it->vlan_id << "| " << it->ipv << ": " << it->ip_addr_src << " " << it->ip_addr_dst << " ";				// for (int k = 1; k < my_map.size()+1; k++) {
 		    // it->ttlOrHop();
 		    // cout << " | ";
