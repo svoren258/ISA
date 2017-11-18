@@ -1654,6 +1654,20 @@ void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<Frag
 	struct ether_header *eptr;
 	eptr = (struct ether_header*)(packet+offset);
 
+	// src_mac = ether_ntoa((const struct ether_addr*)(&eptr->ether_shost));
+	// dst_mac = ether_ntoa((const struct ether_addr*)(&eptr->ether_dhost));
+	
+	// if (src_mac[1] == ':') {
+	// 	src_mac = '0' + src_mac;
+	// }
+
+	// if (dst_mac[1] == ':') {
+	// 	dst_mac = '0' + dst_mac;
+	// }
+
+	// cout << src_mac << endl;
+	// cout << dst_mac << endl;
+
 	snprintf(src_mac_ch, sizeof(src_mac_ch), "%02x:%02x:%02x:%02x:%02x:%02x", eptr->ether_shost[0], eptr->ether_shost[1], eptr->ether_shost[2], eptr->ether_shost[3], eptr->ether_shost[4], eptr->ether_shost[5]);
 	src_mac = src_mac_ch;
 	
@@ -1862,15 +1876,24 @@ int main(int argc, char **argv) {
 	while (argc > optind) {
 
 
-		if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL)
-			err(1,"Can't open file %s for reading", argv[optind]);
+		if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL){
+			cerr << "Can't open file " << argv[optind] << " for reading!" << endl;
+			exit(3);
+			// err(1,"Can't open file %s for reading", argv[optind]);
+		}
 
 		if (strcmp(filter_expr, "") != 0) {
-			if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1)
-				err(1,"pcap_compile() failed");
+			if (pcap_compile(handle,&fp,filter_expr,0,netaddr) == -1){
+				cerr << "pcap_compile() failed" << endl;
+				exit(2);
+				// err(1,"pcap_compile() failed");
+			}
 
-			if (pcap_setfilter(handle,&fp) == -1)
-				err(1,"pcap_setfilter() failed");
+			if (pcap_setfilter(handle,&fp) == -1){
+				cerr << "pcap_setfilter() failed" << endl;
+				exit(2);
+				//err(1,"pcap_setfilter() failed");
+			}
 		}
 
 		while ((packet = pcap_next(handle,&header)) != NULL){
