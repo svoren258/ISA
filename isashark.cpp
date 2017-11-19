@@ -82,10 +82,9 @@ void Packet::set_values(int packet_num, long long time_stamp, int length) {
 	len = length;
 }
 
-void Packet::set_L2_layer(string smac, string dmac, string vlanid) {
+void Packet::set_L2_layer(string smac, string dmac) {
 	src_mac = smac;
 	dst_mac = dmac;
-	vlan_id = vlanid;
 }
 
 void Packet::set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop) {
@@ -795,6 +794,7 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 	}
 
 	if(frag_packets->empty()) {
+		
 		FragmentedPacket FPac;
 		FPac.packet_id = packet_id++;
 		FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
@@ -829,6 +829,7 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 			Hole_Descriptor Hole;
 			FPac.hole_descriptor_list.push_back(Hole);
 			hole_filler(&FPac, total_data_len, fragment_offset, data, flag_mf);
+			
 			frag_packets->push_back(FPac);	
 		}
 	}
@@ -904,8 +905,6 @@ bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2) {
 	return p1.num > p2.num;
 }
 
-static string vlan_id("");
-
 void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<FragmentedPacket> *frag_packets) {
 
 	char src_mac_ch[18];
@@ -936,13 +935,13 @@ void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<Frag
 
 		case ETH_P_8021Q: 
 
-	    	vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
+	    	Pac->vlan_id += to_string(packet[SIZE_ETHERNET+offset+1]) + " ";
 	    	next_header_type(packet, Pac, offset+4, frag_packets);
 	    	break;
 
 	    case ETH_P_8021AD:
 
-	    	vlan_id = to_string(packet[SIZE_ETHERNET+1]) + " ";
+	    	Pac->vlan_id = to_string(packet[SIZE_ETHERNET+1]) + " ";
 			next_header_type(packet, Pac, offset+4, frag_packets);
 			break;
 
@@ -952,7 +951,7 @@ void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<Frag
 			break;
 	}
 
-	Pac->set_L2_layer(src_mac, dst_mac, vlan_id);
+	Pac->set_L2_layer(src_mac, dst_mac);
 }
 
 

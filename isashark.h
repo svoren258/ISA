@@ -56,7 +56,7 @@ class Packet
     int total_packet_len;
     char *data_buffer;
     void set_values(int packet_num, long long time_stamp, int length);
-    void set_L2_layer(string smac, string dmac, string vlanid);
+    void set_L2_layer(string smac, string dmac);
     void set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop);
     void set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, uint32_t ack, string flgs);
     void set_ICMP(string icmp_v, int type, int code, string type_d, string code_d);
