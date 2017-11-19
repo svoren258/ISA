@@ -722,6 +722,64 @@ void FragmentedPacket::save_data(int offset, char *data, int data_len) {
 	}
 }
 
+
+void hole_filler(FragmentedPacket *FPac, unsigned int total_data_len, unsigned int fragment_offset, char *data, bool flag_mf) {
+	for(vector<Hole_Descriptor>::iterator i = FPac->hole_descriptor_list.begin(); i != FPac->hole_descriptor_list.end(); ++i) {
+
+		if (!i->actual) {
+			continue;
+		}
+		if (!flag_mf) {
+			FPac->expected_packet_len = fragment_offset+total_data_len;		
+		}
+		
+		if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
+			continue;
+		}
+		else if (i->hole_first < fragment_offset) {
+			i->actual = false;
+			Hole_Descriptor NewHole;
+			NewHole.hole_first = i->hole_first;
+			NewHole.hole_last = fragment_offset-1;
+
+			if (i->hole_last > fragment_offset+total_data_len-1) {
+				Hole_Descriptor NewHole2;
+				NewHole2.hole_first = fragment_offset+total_data_len;
+				NewHole2.hole_last = i->hole_last;
+				
+				FPac->hole_descriptor_list.push_back(NewHole2);
+			}
+			
+			FPac->hole_descriptor_list.push_back(NewHole);
+			FPac->total_packet_len += total_data_len;
+			FPac->save_data(fragment_offset, data, total_data_len);
+			
+			break;
+		}
+
+		else if (i->hole_first == fragment_offset) {
+			if (i->hole_last == fragment_offset+total_data_len-1) {
+				i->actual = false;
+				FPac->total_packet_len += total_data_len;
+				FPac->save_data(fragment_offset, data, total_data_len);
+			}
+			else {
+				i->hole_first = fragment_offset+total_data_len;
+				FPac->total_packet_len += total_data_len;
+				FPac->save_data(fragment_offset, data, total_data_len);
+			}
+
+			break;
+		}
+		else if (i->hole_last == fragment_offset+total_data_len-1) {
+			i->hole_last = fragment_offset-1;
+			FPac->total_packet_len += total_data_len;
+			FPac->save_data(fragment_offset, data, total_data_len);
+			break;
+		}
+	}
+}
+
 void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets) {
 	struct ip* my_ip;
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
@@ -735,71 +793,15 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 	for (int x = 0; x < total_data_len; ++x) {
 		data[x] = packet[Pac->len-total_data_len+x];
 	}
-	
 
 	if(frag_packets->empty()) {
-		
 		FragmentedPacket FPac;
 		FPac.packet_id = packet_id++;
 		FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
 		FPac.fragment_offset = fragment_offset;
 		Hole_Descriptor Hole;
 		FPac.hole_descriptor_list.push_back(Hole);
-		for(vector<Hole_Descriptor>::iterator i = FPac.hole_descriptor_list.begin(); i != FPac.hole_descriptor_list.end(); ++i) {
-			if (!i->actual) {
-				continue;
-			}
-			if (!flag_mf) {
-				FPac.expected_packet_len = fragment_offset+total_data_len;
-				
-			}
-			
-			if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
-				continue;
-			}
-			else if (i->hole_first < fragment_offset) {
-				i->actual = false;
-				Hole_Descriptor NewHole;
-				NewHole.hole_first = i->hole_first;
-				NewHole.hole_last = fragment_offset-1;
-
-				if (i->hole_last > fragment_offset+total_data_len-1) {
-					Hole_Descriptor NewHole2;
-					NewHole2.hole_first = fragment_offset+total_data_len;
-					NewHole2.hole_last = i->hole_last;
-					
-					FPac.hole_descriptor_list.push_back(NewHole2);
-				}
-				
-				FPac.hole_descriptor_list.push_back(NewHole);
-				FPac.total_packet_len += total_data_len;
-				FPac.save_data(fragment_offset, data, total_data_len);
-				
-				break;
-			}
-
-			else if (i->hole_first == fragment_offset) {
-				if (i->hole_last == fragment_offset+total_data_len-1) {
-					i->actual = false;
-					FPac.total_packet_len += total_data_len;
-					FPac.save_data(fragment_offset, data, total_data_len);
-				}
-				else {
-					i->hole_first = fragment_offset+total_data_len;
-					FPac.total_packet_len += total_data_len;
-					FPac.save_data(fragment_offset, data, total_data_len);
-				}
-
-				break;
-			}
-			else if (i->hole_last == fragment_offset+total_data_len-1) {
-				i->hole_last = fragment_offset-1;
-				FPac.total_packet_len += total_data_len;
-				FPac.save_data(fragment_offset, data, total_data_len);
-				break;
-			}
-		}
-	
+		hole_filler(&FPac, total_data_len, fragment_offset, data, flag_mf);
 		frag_packets->push_back(FPac);
 
 	}
@@ -807,82 +809,17 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 		for (vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
 			
 			if ((it->id == my_ip->ip_id) && (it->ip_addr_src.compare(ip_src) == 0) && (it->ip_addr_dst.compare(ip_dst) == 0) && (it->protocol == my_ip->ip_p)) {
-				
 				exists = true;
-			
-				for(vector<Hole_Descriptor>::iterator i = it->hole_descriptor_list.begin(); i != it->hole_descriptor_list.end(); ++i) {
-					if (!i->actual) {
-						continue;
-					}
-					if (!flag_mf) {
-						it->expected_packet_len = fragment_offset+total_data_len;
-
-					}
-					
-					if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
-						continue;
-					}
-					else if (i->hole_first < fragment_offset) {
-						i->actual = false;
-						Hole_Descriptor NewHole;
-						NewHole.hole_first = i->hole_first;
-						NewHole.hole_last = fragment_offset-1;
-
-						if (i->hole_last > fragment_offset+total_data_len-1) {
-							Hole_Descriptor NewHole2;
-							NewHole2.hole_first = fragment_offset+total_data_len;
-							NewHole2.hole_last = i->hole_last;
-							
-							it->hole_descriptor_list.push_back(NewHole2);
-						}
-					
-						it->hole_descriptor_list.push_back(NewHole);
-						it->total_packet_len += total_data_len;
-						
-						it->save_data(fragment_offset, data, total_data_len);
-
-						break;
-					}
-
-					else if (i->hole_first == fragment_offset) {
-						if (i->hole_last == fragment_offset+total_data_len-1) {
-							i->actual = false;
-							it->total_packet_len += total_data_len;
-							it->save_data(fragment_offset, data, total_data_len);
-						}
-						else {
-							i->hole_first = fragment_offset+total_data_len;
-							it->total_packet_len += total_data_len;
-							it->save_data(fragment_offset, data, total_data_len);
-						}
-
-						break;
-					}
-					else if (i->hole_last == fragment_offset+total_data_len-1) {
-						i->hole_last = fragment_offset-1;
-						it->total_packet_len += total_data_len;
-						it->save_data(fragment_offset, data, total_data_len);
-						break;
-					}
-				}
-
+				hole_filler(&(*it), total_data_len, fragment_offset, data, flag_mf);
 				if (it->expected_packet_len == it->total_packet_len) {
-					
 					Pac->is_reassembled = true;
-
 					Pac->total_packet_len = it->total_packet_len;
 					Pac->data_buffer = new char[it->total_packet_len];
 					array_to_array(Pac->data_buffer, it->data_buffer, it->total_packet_len);
-				
 					break;
 				}		
-
 				break;
 			}
-
-			
-			
-			
 		}
 		if ((!exists) && (!Pac->is_reassembled)) {
 			FragmentedPacket FPac;
@@ -891,61 +828,7 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 			FPac.fragment_offset = fragment_offset;
 			Hole_Descriptor Hole;
 			FPac.hole_descriptor_list.push_back(Hole);
-			for(vector<Hole_Descriptor>::iterator i = FPac.hole_descriptor_list.begin(); i != FPac.hole_descriptor_list.end(); ++i) {
-				if (!i->actual) {
-					continue;
-				}
-				if (!flag_mf) {
-					FPac.expected_packet_len = fragment_offset+total_data_len;
-					
-				}
-				
-				if ((i->hole_first > fragment_offset) || (i->hole_last < fragment_offset+total_data_len-1)) {
-					continue;
-				}
-				else if (i->hole_first < fragment_offset) {
-					i->actual = false;
-					Hole_Descriptor NewHole;
-					NewHole.hole_first = i->hole_first;
-					NewHole.hole_last = fragment_offset-1;
-					
-
-					if (i->hole_last > fragment_offset+total_data_len-1) {
-						Hole_Descriptor NewHole2;
-						NewHole2.hole_first = fragment_offset+total_data_len;
-						NewHole2.hole_last = i->hole_last;
-						
-						FPac.hole_descriptor_list.push_back(NewHole2);
-					}
-				
-					FPac.hole_descriptor_list.push_back(NewHole);
-					FPac.total_packet_len += total_data_len;
-					FPac.save_data(fragment_offset, data, total_data_len);
-
-					break;
-				}
-
-				else if (i->hole_first == fragment_offset) {
-					if (i->hole_last == fragment_offset+total_data_len-1) {
-						i->actual = false;
-						FPac.total_packet_len += total_data_len;
-						FPac.save_data(fragment_offset, data, total_data_len);
-					}
-					else {
-						i->hole_first = fragment_offset+total_data_len;
-						FPac.total_packet_len += total_data_len;
-						FPac.save_data(fragment_offset, data, total_data_len);
-					}
-					break;
-				}
-				else if (i->hole_last == fragment_offset+total_data_len-1) {
-					i->hole_last = fragment_offset-1;
-					FPac.total_packet_len += total_data_len;
-					FPac.save_data(fragment_offset, data, total_data_len);
-					break;
-				}
-			}
-			
+			hole_filler(&FPac, total_data_len, fragment_offset, data, flag_mf);
 			frag_packets->push_back(FPac);	
 		}
 	}

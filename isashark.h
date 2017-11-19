@@ -11,15 +11,9 @@
 #define PCAP_ERRBUF_SIZE (256)
 #endif
 
-#define SIZE_ETHERNET (14)       // offset of Ethernet header to L3 protocol
-#define SIZE_IP_HDR (20)
-#define SIZE_IPV6_HDR (40)
-
-// #include <sys/types.h>
-// #include <stdint.h>
-// #include <features.h>
-// #include <sys/socket.h>
-// #include <stdint.h>
+#define SIZE_ETHERNET (14)        // offset of Ethernet header to L3 protocol
+#define SIZE_IP_HDR (20)          // offset of IPv4 header to L4 protocol
+#define SIZE_IPV6_HDR (40)        // offset of IPv6 header to L4 protocol
 
 using namespace std;
 
@@ -118,6 +112,7 @@ bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2);
 
 void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<FragmentedPacket> *frag_packets);
 
+void hole_filler(FragmentedPacket *Fpac, unsigned int total_data_len, unsigned int fragment_offset, char *data, bool flag_mf);
 /*this structure is implemented in header file tcp.h*/
 
 typedef uint32_t tcp_seq;
