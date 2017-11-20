@@ -1,4 +1,12 @@
-/*This is header file for source isashark.cpp*/
+/** 
+ * Subject: ISA - Programování síťové služby
+ * Project name: Analyzátor paketů
+ * Author: Ondrej Svoreň, 3 BIT
+ * Login: xsvore01
+ * Year: 2017/2018
+ **/
+
+//This is header file for source isashark.cpp
 #ifdef _USE_BSD
 #define _USE_BSD
 #endif
@@ -17,15 +25,7 @@
 
 using namespace std;
 
-class AggregatedPackets {
-  public:
-    string aggrkey = "";
-    int num = 0;
-    int size = 0;
-    void print_aggr(int limit, bool is_limited, int counter);
-};
-
-
+//This class defines all king of supported protocols attributes and methods, that can be used for output packet description 
 class Packet
 {
   public:
@@ -65,7 +65,16 @@ class Packet
     void l4_output();
 };
 
+//This class represents aggregated packet attributes and methods
+class AggregatedPackets {
+  public:
+    string aggrkey = "";
+    int num = 0;
+    int size = 0;
+    void print_aggr(int limit, bool is_limited, int counter);
+};
 
+//This class describes "hole" in reassembly algorithm implementation
 class Hole_Descriptor{
   public:
     int hole_first = 0;
@@ -73,8 +82,8 @@ class Hole_Descriptor{
     bool actual = true;
 };
 
-
- class FragmentedPacket: public Packet
+//This class represents fragmented packet attributes and methods for manipulation with fragments of the fragmented packet
+class FragmentedPacket: public Packet
  {
    public:
     int packet_id;
@@ -90,31 +99,49 @@ class Hole_Descriptor{
  };
 
 
+/*In this function is implemented aggregation of packets according to aggr_key - the second parameter and
+ the way of putting the packets together and saving them in std::vector, which is used as first parameter*/
 void aggregate_packet(vector<AggregatedPackets> *aggr_pac, string aggr_key, int len);
 
+//In this function are saved strings of ICMPv4 and ICMPv6 error messages
 void icmp(int version, const u_char *packet, Packet *Pac, int offset);
 
+/*This function describes processing packet on L4 layer, sets transport layer protocol such as TCP, UDP or ICMP according to
+ internet protocol version, which is represented by first parameter*/
 void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset, bool extended_hdr);
 
-void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *Pac);
-
-void array_to_array(char *dst, char *src, int len);
-
-void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets);
-
+/*This function describes processing packet on L3 layer, sets internet protocol version and in case of fragmentation 
+ calls function fragmentation_reassembly(..)*/
 void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<FragmentedPacket> *frag_packets);
 
+/*This function solves analysis of incoming packets with IPv6 extended headers and jumps over all these headers to
+ L4 layer analysis - calls function l4_protocol(..) */
+void extended_IPv6_header(const u_char* packet, Packet *Pac);
+
+/*In this function starts reassembly process in case of fragmentation
+ The current fragment is verified by comparision of source IP address, destination IP address, identifier and protocol number
+ The fragmented packets are saved in std::vector of FragmentedPacket used as last argument and processing continues by 
+ calling supplementary function hole_filler(..) */
+void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets);
+
+/*This function creates object of class FragmentedPacket (1st argument), fulfills empty holes in fragmented packet with data (4th argument) of length total_data_len (2nd argument) 
+ from incoming fragment in case of appropriate fragment offset (3rd argument).*/
+void hole_filler(FragmentedPacket *Fpac, unsigned int total_data_len, unsigned int fragment_offset, char *data, bool flag_mf);
+
+//Supplementary function used as third parameter of C++ function sort() by sorting
 bool sortByBytes(const Packet &p1, const Packet &p2);
 
+//Supplementary function used as third parameter of C++ function sort() by sorting in association with aggregation
 bool sortByBytes_a(const AggregatedPackets &p1, const AggregatedPackets &p2);
 
+//supplementary function used as third parameter of C++ function sort() by sorting in association with aggregation
 bool sortByPackets(const AggregatedPackets &p1, const AggregatedPackets &p2);
 
+/*This function is looking for ethertype of analysed packet and direct control to functions that are working with upper layer protocols
+such as IP, TCP, UDP, ICMP etc. */
 void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<FragmentedPacket> *frag_packets);
 
-void hole_filler(FragmentedPacket *Fpac, unsigned int total_data_len, unsigned int fragment_offset, char *data, bool flag_mf);
-/*this structure is implemented in header file tcp.h*/
-
+/*this structure is implemented in header file netinet/tcp.h*/
 typedef uint32_t tcp_seq;
 
 struct tcphdr
@@ -187,7 +214,7 @@ struct tcphdr
     };
 };
 
-/*this structure is implemented in header file udp.h*/
+/*this structure is implemented in header file netinet/udp.h*/
 struct udphdr
 {
   __extension__ union

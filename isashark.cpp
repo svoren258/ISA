@@ -1,3 +1,11 @@
+/** 
+ * Subject: ISA - Programování síťové služby
+ * Project name: Analyzátor paketů
+ * Author: Ondrej Svoreň, 3 BIT
+ * Login: xsvore01
+ * Year: 2017/2018
+ **/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pcap.h>
@@ -23,6 +31,8 @@
 #include <iterator>
 #include <algorithm>
 #include <vector>
+#include "isashark.h"
+
 
 #ifdef __linux__      
 #include <netinet/ether.h> 
@@ -30,8 +40,6 @@
 #include <pcap/pcap.h>
 #include <linux/if_ether.h>
 #endif
-
-#include "isashark.h"
 
 using namespace std;
 
@@ -233,10 +241,6 @@ void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 				case 6:
 					code_description = "reject route to destination";
 					break;
-
-				case 7:
-					code_description = "error in source routing header";
-					break;
 			}
 		}
 
@@ -283,7 +287,16 @@ void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 		else if (type == 129) {
 			type_description = "echo Reply";
 		}
+
+		else if ((type == 200) || (type == 201)) {
+			type_description = "private experimentation";
+		}
+
+		else if (type == 255) {
+			type_description = "reserved for expansion of ICMPv6 informational messages";
+		}
 	}
+
 	else if (version == 4) {
 		icmp_ver = "ICMPv4: ";
 		if (Pac->is_reassembled) {
@@ -324,46 +337,6 @@ void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 
 				case 5:
 					code_description = "source route failed";
-					break;
-
-				case 6:
-					code_description = "destination network unknown";
-					break;
-
-				case 7:
-					code_description = "destination host unknown";
-					break;
-
-				case 8:
-					code_description = "source host isolated";
-					break;
-
-				case 9:
-					code_description = "network administratively prohibited";
-					break;
-
-				case 10:
-					code_description = "host administratively prohibited";
-					break;
-
-				case 11:
-					code_description = "network unreachable for Type of Service";
-					break;
-
-				case 12:
-					code_description = "host unreachable for Type of Service";
-					break;
-
-				case 13:
-					code_description = "communication administratively prohibited";
-					break;
-
-				case 14:
-					code_description = "host precedence violation";
-					break;
-
-				case 15:
-					code_description = "precedence cutoff in effect";
 					break;
 			}
 		}
@@ -416,14 +389,6 @@ void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 			if (code == 0) {
 				code_description = "pointer indicates the error";
 			}
-
-			else if (code == 1) {
-				code_description = "missing a required option";
-			}
-
-			else if (code == 2) {
-				code_description = "bad length";
-			}
 		} 
 		else if (type == 13) {
 			type_description = "timestamp";
@@ -437,19 +402,12 @@ void icmp(int version, const u_char *packet, Packet *Pac, int offset = 0) {
 		else if (type == 16) {
 			type_description = "information reply";
 		}		
-		else if (type == 17) {
-			type_description = "address mask request";
-		}
-
-		else if (type == 18) {
-			type_description = "addres mask reply";
-		}
 	}
 
 	Pac->set_ICMP(icmp_ver, type, code, type_description, code_description);
 }
 
-void extended_IPv6_header(uint8_t next, const u_char* packet, Packet *Pac) {
+void extended_IPv6_header(const u_char* packet, Packet *Pac) {
 
 	struct ip6_ext *my_ip6_ext;
 	int total_offset = 0;
@@ -594,7 +552,7 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 	}
 
 	else if (ipv.compare("IPv6") == 0) {
-		uint8_t next_hdr = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		// uint8_t next_hdr = my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
 		switch (my_ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt) {
 			case 6:
 				
@@ -688,7 +646,7 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 	    		break;
 
 	    	default:
-	    		extended_IPv6_header(next_hdr, packet, Pac);
+	    		extended_IPv6_header(packet, Pac);
 	    		break;
     	}
 	}
@@ -704,15 +662,6 @@ void FragmentedPacket::create_fragmented_packet(unsigned short id_field, string 
  	ip_addr_src = srcip;
  	ip_addr_dst = dstip;
  	protocol = prtcl;
-}
-
-static int packet_id = 0;
-
-
-void array_to_array(char *dst, char *src, int len) {
-	for (int i = 0; i < len; i++) {
-		dst[i] = src[i];
-	}
 }
 
 void FragmentedPacket::save_data(int offset, char *data, int data_len) {
@@ -780,6 +729,7 @@ void hole_filler(FragmentedPacket *FPac, unsigned int total_data_len, unsigned i
 }
 
 void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, string ip_dst, vector<FragmentedPacket> *frag_packets) {
+	
 	struct ip* my_ip;
 	my_ip = (struct ip*)(packet+SIZE_ETHERNET);
 	unsigned int total_data_len = int(packet[17]) - SIZE_IP_HDR;
@@ -796,7 +746,6 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 	if(frag_packets->empty()) {
 		
 		FragmentedPacket FPac;
-		FPac.packet_id = packet_id++;
 		FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
 		FPac.fragment_offset = fragment_offset;
 		Hole_Descriptor Hole;
@@ -815,7 +764,7 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 					Pac->is_reassembled = true;
 					Pac->total_packet_len = it->total_packet_len;
 					Pac->data_buffer = new char[it->total_packet_len];
-					array_to_array(Pac->data_buffer, it->data_buffer, it->total_packet_len);
+					memcpy(Pac->data_buffer, it->data_buffer, it->total_packet_len);
 					break;
 				}		
 				break;
@@ -823,7 +772,6 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 		}
 		if ((!exists) && (!Pac->is_reassembled)) {
 			FragmentedPacket FPac;
-			FPac.packet_id = packet_id++;
 			FPac.create_fragmented_packet(my_ip->ip_id, ip_src, ip_dst, my_ip->ip_p);
 			FPac.fragment_offset = fragment_offset;
 			Hole_Descriptor Hole;
@@ -960,21 +908,13 @@ int main(int argc, char **argv) {
 
   	char errbuf[PCAP_ERRBUF_SIZE];  // constant defined in pcap.h
   	const u_char *packet;
-  	struct ip *my_ip;
-  	struct ip *my_vlan_ip;
 	const struct tcphdr *my_tcp;    // pointer to the beginning of TCP header
   	const struct udphdr *my_udp;    // pointer to the beginning of UDP header
-  	struct icmphdr *my_icmp, *my_vlan_icmp; 
   	struct pcap_pkthdr header;  
-  	struct ether_header *eptr;
   	pcap_t *handle;                 // file/device handler
-  	u_int size_ip;
-  	struct ip6_hdr *my_ip6, *my_vlan_ip6;
-  	struct ethhdr* my_eth;
   	struct bpf_program fp;
 	bpf_u_int32 netaddr = 0;            // network address configured at the input device
 	bpf_u_int32 mask;               // network mask of the input device
-	char *dev = NULL;
 
 	///Arguments Parsing
 	const char* aggrkey;
@@ -998,19 +938,17 @@ int main(int argc, char **argv) {
 	bool vlan1ad = false;
 	bool fragmentation = false;
 
-	///counter variables
-	int p = 0;
-	int n = 0;
-	int counter;
-
-
 	vector<Packet> packets;
 	vector<AggregatedPackets> aggr_packets;
 	vector<FragmentedPacket> frag_packets;
-	//sorting variables
 
-	string aggrKey;
+	//counter variables
+	int p = 0;
+	int n = 0;
+	int c;
+	int counter;
 
+	//Argument parser
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
 			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] files ..." << endl;
@@ -1018,7 +956,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	int c;
 	while ((c = getopt (argc, argv, "a:s:l:f:")) != -1) {
 		switch(c) {
 			case 'a':
@@ -1052,14 +989,12 @@ int main(int argc, char **argv) {
 					cerr << "Wrong argument value [-a aggr-key]!" << endl;
 					exit(1);
 				}
-
 				break;
 			}
 
 			case 's':
 			if (optarg) {
 				sort_key = optarg;
-				// cout << "sort key:" << sort_key << endl;
 				if (strcmp(sort_key, "packets") == 0) {
 					sort_by_packets = true;
 				}
@@ -1081,7 +1016,6 @@ int main(int argc, char **argv) {
 					cerr << "Wrong argument value [-l limit]!" << endl;
 					exit(1);
 				}
-
 				break;
 			}
 
@@ -1096,11 +1030,9 @@ int main(int argc, char **argv) {
 				exit(1);
 				break;
 		}
-
 	}
 
 	while (argc > optind) {
-
 
 		if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL){
 			cerr << "Can't open file " << argv[optind] << " for reading!" << endl;
@@ -1142,11 +1074,16 @@ int main(int argc, char **argv) {
 		optind++;
 	}
 
-
+	//Part of code which defines output even by aggregation and sorting
 	if (aggr_srcip) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-			aggregate_packet(&aggr_packets, it->ip_addr_src, it->len);
+			if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, it->ip_addr_src, it->len);
+			}
+			else if (!it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1170,7 +1107,12 @@ int main(int argc, char **argv) {
 	else if (aggr_dstip) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-			aggregate_packet(&aggr_packets, it->ip_addr_dst, it->len);
+			if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, it->ip_addr_dst, it->len);
+			}
+			else if (!it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1194,7 +1136,12 @@ int main(int argc, char **argv) {
 	else if (aggr_srcmac) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-			aggregate_packet(&aggr_packets, it->src_mac, it->len);
+			if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, it->src_mac, it->len);
+			}
+			else if (!it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1219,7 +1166,12 @@ int main(int argc, char **argv) {
 	else if (aggr_dstmac) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
-			aggregate_packet(&aggr_packets, it->dst_mac, it->len);
+			if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, it->dst_mac, it->len);
+			}
+			else if (it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1247,7 +1199,12 @@ int main(int argc, char **argv) {
 				cerr << "Packet doesn't contain any value of aggregation key." << endl;
 				continue;
 			}
-			aggregate_packet(&aggr_packets, to_string(it->src_port), it->len);
+			else if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, to_string(it->src_port), it->len);
+			}
+			else if (!it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1275,7 +1232,12 @@ int main(int argc, char **argv) {
 				cerr << "Packet doesn't contain any value of aggregation key." << endl;
 				continue;
 			}
-			aggregate_packet(&aggr_packets, to_string(it->dst_port), it->len);
+			else if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				aggregate_packet(&aggr_packets, to_string(it->dst_port), it->len);
+			}
+			else if (!it->is_reassembled) {
+				continue;
+			}
 		}
 		if (sort_by_packets){
 			sort(aggr_packets.begin(), aggr_packets.end(), sortByPackets);
@@ -1303,12 +1265,17 @@ int main(int argc, char **argv) {
 			if ((is_limited) && (counter > limit)) {
 				break;
 			}
-			it->output();
-			counter++;
+			else if (((fragmentation) && (it->is_reassembled)) || ((!fragmentation) && (!it->is_reassembled))) {
+				if (fragmentation){
+					it->num = counter;
+				}
+				it->output();
+				counter++;
+			}
+			else if (!it->is_reassembled) {
+				continue;	
+			}
 		}
-		// for (Packet &pack : packets){
-		// 	pack.output();
-		// }
 	}
 	else {
 		counter = 1;
