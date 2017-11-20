@@ -1,5 +1,5 @@
 
-# Packet Analyser - Terminal utility for simple packet analysis
+# Packet Analyser - Terminal utility for offline packet analysis
 
 ## Usage:
 
