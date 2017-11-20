@@ -1,11 +1,11 @@
 /** 
- * Subject: ISA - Programování síťové služby
- * Project name: Analyzátor paketů
+ * Subject: ISA, Network Applications
+ * Project: Network Service Programing - Packet Analyser
  * Author: Ondrej Svoreň, 3 BIT
  * Login: xsvore01
  * Year: 2017/2018
+ * File: isashark.cpp
  **/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pcap.h>
@@ -33,16 +33,15 @@
 #include <vector>
 #include "isashark.h"
 
-
 #ifdef __linux__      
 #include <netinet/ether.h> 
-#include <time.h>
 #include <pcap/pcap.h>
 #include <linux/if_ether.h>
 #endif
 
 using namespace std;
 
+//Method of class AggregatedPackets, prints out aggregated packets in wanted format
 void AggregatedPackets::print_aggr(int limit, bool is_limited, int counter) {
 	if (this->aggrkey.compare("-1") == 0) {
 		return;
@@ -83,18 +82,20 @@ void aggregate_packet(vector<AggregatedPackets> *aggr_pac, string aggr_key, int 
 	}
 }
 
-
+//Method of class Packet, sets values to object of the packet as packet number, timestamp and packet length
 void Packet::set_values(int packet_num, long long time_stamp, int length) {
 	num = packet_num;
 	ts = time_stamp;
 	len = length;
 }
 
+//Method of class Packet, sets values to object of the packet as source MAC address and destination MAC address
 void Packet::set_L2_layer(string smac, string dmac) {
 	src_mac = smac;
 	dst_mac = dmac;
 }
 
+//Method of class Packet, sets values to object of the packet as version of IP protocol, source IP address, destination IP address, time ot live and hop limit
 void Packet::set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim, int hop) {
 	ipv = ip_v;
 	ip_addr_src = ip_src;
@@ -103,6 +104,8 @@ void Packet::set_L3_layer(string ip_v, string ip_src, string ip_dst, int ttl_lim
 	hop_limit = hop;
 }
 
+/*Method of class Packet, sets values to object of the packet as number of source port, 
+ destination port, sequence number, acknowledgement byte and flags for TCP*/
 void Packet::set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, uint32_t ack, string flgs) {
 	l4_layer = l4_id;
 	src_port = s_port;		
@@ -112,6 +115,7 @@ void Packet::set_L4_layer(string l4_id, int s_port, int d_port, uint32_t seq, ui
 	flags = flgs;
 }
 
+//Method of class Packet, prints output in wanted format
 void Packet::output() {
 	if (this->is_unsupported){
 		cout << this->num << ": " << "Unsupported protocol" << endl;
@@ -124,6 +128,7 @@ void Packet::output() {
 	}	
 }
 
+//Method of class Packet, identifies time to live and hop limit 
 void Packet::ttlOrHop() {
 	if (this->ttl != -1) {
 		cout << this->ttl;
@@ -133,6 +138,7 @@ void Packet::ttlOrHop() {
 	}
 }
 
+//Method of class Packet, prints part of output that belongs to L4 layer
 void Packet::l4_output() {
 	cout << this->l4_layer;
 	if (this->src_port != -1) {
@@ -163,13 +169,13 @@ void Packet::l4_output() {
 		cout << this->icmp_ver;
 	}
 
-	if (this->vlan_type != -1) {
-		cout << this->vlan_type;
+	if (this->icmp_type != -1) {
+		cout << this->icmp_type;
 		cout << " ";
 	}
 
-	if (this->vlan_code != -1) {
-		cout << this->vlan_code;
+	if (this->icmp_code != -1) {
+		cout << this->icmp_code;
 		cout << " ";
 	}
 
@@ -185,10 +191,11 @@ void Packet::l4_output() {
 	cout << endl;
 }
 
+//Method of class Packet, sets ICMP attributes such as ICMP type, code, type description and code description
 void Packet::set_ICMP(string icmp_v, int type, int code, string type_d, string code_d) {
 	icmp_ver = icmp_v;
-	vlan_type = type;
-	vlan_code = code;
+	icmp_type = type;
+	icmp_code = code;
 	type_description = type_d;
 	code_description = code_d; 
 }
@@ -657,6 +664,8 @@ void l4_protocol(string ipv, const u_char *packet, Packet *Pac, int offset = 0, 
 
 }
 
+/*Method of class FragmentedPacket, creates object of fragmented packet and enters values of identifier, source IP address,
+ destination IP address and protocol*/
 void FragmentedPacket::create_fragmented_packet(unsigned short id_field, string srcip, string dstip, uint8_t prtcl) {
  	id = id_field;
  	ip_addr_src = srcip;
@@ -664,6 +673,7 @@ void FragmentedPacket::create_fragmented_packet(unsigned short id_field, string 
  	protocol = prtcl;
 }
 
+//Method of class FragmentedPacket, saved data from each fragment of the fragmented packet
 void FragmentedPacket::save_data(int offset, char *data, int data_len) {
 	for(int x = 0; x < data_len; x++) {
 		this->data_buffer[x+offset] = data[x];
@@ -752,7 +762,6 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 		FPac.hole_descriptor_list.push_back(Hole);
 		hole_filler(&FPac, total_data_len, fragment_offset, data, flag_mf);
 		frag_packets->push_back(FPac);
-
 	}
 	else {
 		for (vector<FragmentedPacket>::iterator it = frag_packets->begin(); it != frag_packets->end(); ++it) {
@@ -777,8 +786,7 @@ void fragmentation_reassembly(Packet *Pac, const u_char *packet, string ip_src, 
 			Hole_Descriptor Hole;
 			FPac.hole_descriptor_list.push_back(Hole);
 			hole_filler(&FPac, total_data_len, fragment_offset, data, flag_mf);
-			
-			frag_packets->push_back(FPac);	
+		 	frag_packets->push_back(FPac);	
 		}
 	}
 }
@@ -835,11 +843,10 @@ void l3_protocol(string ip_v, const u_char *packet, Packet *Pac, vector<Fragment
 	}
 
 	Pac->set_L3_layer(ip_v, ip_addr_src, ip_addr_dst, ttl, hop_limit);
-
 	l4_protocol(ip_v, packet, Pac);	
 	
+	
 }
-
 
 bool sortByBytes(const Packet &p1, const Packet &p2) {
 	return p1.len > p2.len;
@@ -903,7 +910,8 @@ void next_header_type(const u_char* packet, Packet *Pac, int offset, vector<Frag
 }
 
 
-
+/*Main function of source file, parses arguments, opens input file for reading and realizes all kind of output 
+ such as aggregation, sorting, combination of aggregation and sorting, limiting output*/
 int main(int argc, char **argv) {
 
   	char errbuf[PCAP_ERRBUF_SIZE];  // constant defined in pcap.h
@@ -917,10 +925,10 @@ int main(int argc, char **argv) {
 	bpf_u_int32 mask;               // network mask of the input device
 
 	///Arguments Parsing
-	const char* aggrkey;
-	const char* filter_expr = "";
-	const char* sort_key;
-	int limit;
+	const char* aggrkey;			//aggregation key used by aggregation
+	const char* filter_expr = "";	//filter expression
+	const char* sort_key;			//sorting key
+	int limit;						//limit
 	
 	//bool variables
 	bool input_files = false;
@@ -938,6 +946,7 @@ int main(int argc, char **argv) {
 	bool vlan1ad = false;
 	bool fragmentation = false;
 
+	//std::vector variables
 	vector<Packet> packets;
 	vector<AggregatedPackets> aggr_packets;
 	vector<FragmentedPacket> frag_packets;
@@ -951,7 +960,11 @@ int main(int argc, char **argv) {
 	//Argument parser
 	if (argc == 2) {
 		if (strcmp("-h", argv[1]) == 0) {
+			cout << "Packet Analyser - Terminal utility for simple packet analysis" << endl;
 			cout << "Usage: isashark [-h] [-a aggr-key] [-s sort-key] [-l limit] [-f filter-expression] files ..." << endl;
+			cout << "	[-a aggr-key]: aggr-key = { srcip, dstip, srcmac, dstmac, srcport, dstport }" << endl;
+			cout << "	[-s sort-key]: sort-key = { packets, bytes }" << endl;
+			cout << "	[-l limit]: limit = { 0, 1, 2, ..., n }" << endl;
 			exit(0);
 		}
 	}
@@ -1033,7 +1046,7 @@ int main(int argc, char **argv) {
 	}
 
 	while (argc > optind) {
-
+		//Opening file for offline analysis
 		if ((handle = pcap_open_offline(argv[optind],errbuf)) == NULL){
 			cerr << "Can't open file " << argv[optind] << " for reading!" << endl;
 			exit(3);
@@ -1044,7 +1057,7 @@ int main(int argc, char **argv) {
 				cerr << "pcap_compile() failed" << endl;
 				exit(2);
 			}
-
+			//Setting filter 
 			if (pcap_setfilter(handle,&fp) == -1){
 				cerr << "pcap_setfilter() failed" << endl;
 				exit(2);
@@ -1062,6 +1075,7 @@ int main(int argc, char **argv) {
 			Pac.set_values(p, ts, header.len);
 
 			next_header_type(packet, &Pac, 0, &frag_packets);
+
 			if (!frag_packets.empty()) {
 				fragmentation = true;
 			}
@@ -1074,7 +1088,8 @@ int main(int argc, char **argv) {
 		optind++;
 	}
 
-	//Part of code which defines output even by aggregation and sorting
+	//Part of code which defines all kind of output such as aggregation, sorting and combination of aggregation and sorting
+	//Aggregation according to source IP address
 	if (aggr_srcip) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1103,7 +1118,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-
+	//Aggregation according to destination IP address
 	else if (aggr_dstip) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1132,7 +1147,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-
+	//Aggregation according to source MAC address
 	else if (aggr_srcmac) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1162,7 +1177,7 @@ int main(int argc, char **argv) {
 		}
 
 	}
-
+	//Aggregation according to destination MAC address
 	else if (aggr_dstmac) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1191,7 +1206,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-
+	//Aggregaton according to source port
 	else if (aggr_srcport) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1224,7 +1239,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-
+	//Aggregation according to destination port
 	else if (aggr_dstport) {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {
@@ -1258,6 +1273,7 @@ int main(int argc, char **argv) {
 		}
 
 	}
+	//Sorting according to packet length and output implementation
 	else if (sort_by_bytes) {
 		counter = 1;
 		sort(packets.begin(), packets.end(), sortByBytes);
@@ -1277,6 +1293,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
+	//Output implementation without aggregation or sorting
 	else {
 		counter = 1;
 		for (vector<Packet>::iterator it = packets.begin(); it != packets.end(); ++it) {

@@ -1,12 +1,11 @@
 /** 
- * Subject: ISA - Programování síťové služby
- * Project name: Analyzátor paketů
+ * Subject: ISA, Network Applications
+ * Project: Network Service Programing - Packet Analyser
  * Author: Ondrej Svoreň, 3 BIT
  * Login: xsvore01
  * Year: 2017/2018
+ * File: isashark.h (header file for isashark.cpp)
  **/
-
-//This is header file for source isashark.cpp
 #ifdef _USE_BSD
 #define _USE_BSD
 #endif
@@ -25,7 +24,10 @@
 
 using namespace std;
 
-//This class defines all king of supported protocols attributes and methods, that can be used for output packet description 
+/*This class defines all kind of supported protocols attributes and methods, that can be used for output packet description such as
+ timestamp, packet length, source MAC address, destionation MAC address, source IP address, destination IP address, time to live (TTL)/hop limit,
+ source port number, destination port number, TCP flags, VLAN type and code etc.
+ Also includes methods for saving data to the object of current packet for each layer*/
 class Packet
 {
   public:
@@ -47,8 +49,8 @@ class Packet
     uint32_t ack_byte = -1;
     string flags = "";
     string icmp_ver = "";
-    int vlan_type = -1;
-    int vlan_code = -1;
+    int icmp_type = -1;
+    int icmp_code = -1;
     string type_description = "";
     string code_description = "";
     bool is_unsupported = false;
@@ -65,7 +67,8 @@ class Packet
     void l4_output();
 };
 
-//This class represents aggregated packet attributes and methods
+/*This class represents aggregated packet and its attributes and methods such as aggregation key,
+ number of aggregated packets, size of aggregated packets and method which realizes output*/
 class AggregatedPackets {
   public:
     string aggrkey = "";
@@ -74,7 +77,8 @@ class AggregatedPackets {
     void print_aggr(int limit, bool is_limited, int counter);
 };
 
-//This class describes "hole" in reassembly algorithm implementation
+/*This class describes "hole" in reassembly algorithm implementation.
+ Hole is represented by start and end or hole_first and hole_last.*/
 class Hole_Descriptor{
   public:
     int hole_first = 0;
@@ -82,11 +86,12 @@ class Hole_Descriptor{
     bool actual = true;
 };
 
-//This class represents fragmented packet attributes and methods for manipulation with fragments of the fragmented packet
+/*This class represents fragmented packet attributes and methods for manipulation with fragments of the fragmented packet
+ such as data buffer, fragment offset or hole_descriptor list, which is type of std::vector working with objects of Hole_Descriptor class.
+ Also includes method for creating new fragmented packet and for saving data from current fragment to data buffer*/
 class FragmentedPacket: public Packet
  {
    public:
-    int packet_id;
     unsigned short id;
     uint8_t protocol;
     int expected_packet_len = 0;
